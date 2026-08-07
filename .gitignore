@@ -1,0 +1,3 @@
+# macOS, and the AppleDouble sidecar that exFAT writes beside every file
+._*
+.DS_Store
