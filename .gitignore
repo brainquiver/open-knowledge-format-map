@@ -1,3 +1,9 @@
 # macOS, and the AppleDouble sidecar that exFAT writes beside every file
 ._*
 .DS_Store
+
+# The reference exports. Each 4K image is a render of the small vector that
+# sits beside it in icons/, so anybody can make them again at any size. They
+# are about 2 MB together, and a git history keeps every version of a binary
+# for ever, so they stay out.
+icons/reference/
