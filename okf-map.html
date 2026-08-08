@@ -640,15 +640,19 @@
   .shell { flex: 1; display: flex; min-height: 0; }
 
   .rail {
-    inline-size: 264px; flex: none;
+    inline-size: 290px; flex: none;
     background: var(--cds-layer-01);
     border-inline-end: 1px solid var(--cds-border-subtle-01);
     display: flex; flex-direction: column; min-block-size: 0;
   }
+  /* The rail scrolls, and it shows no bar for it. Firefox and the standard
+     take scrollbar-width, and WebKit needs the pseudo element switched off
+     as well, or the bar keeps its track. */
   .rail .scroll {
     flex: 1; overflow-y: auto;
-    scrollbar-width: thin;
+    scrollbar-width: none; -ms-overflow-style: none;
   }
+  .rail .scroll::-webkit-scrollbar { display: none; inline-size: 0; block-size: 0; }
   .searchbar {
     flex: none; position: relative;
     border-block-end: 1px solid var(--cds-border-subtle-01);
@@ -963,6 +967,24 @@
     flex: 1; min-inline-size: 0; word-break: break-word;
     font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace;
   }
+  /* The trust and lifecycle badges. Carbon's tag, at the 18px height, with
+     the pair of colours each state carries. */
+  .badges { display: flex; flex-wrap: wrap; gap: 4px; }
+  .badge {
+    display: inline-flex; align-items: center;
+    block-size: 18px; padding-inline: 8px;
+    font-size: 12px; letter-spacing: 0.32px; white-space: nowrap;
+    background: var(--cds-layer-accent-01); color: var(--cds-text-secondary);
+  }
+  .badge[data-b="human-reviewed"] { background: #defbe6; color: #0e6027; }
+  .badge[data-b="machine-confirmed"] { background: #e8daff; color: #6929c4; }
+  .badge[data-b="stale"] { background: #fff1f1; color: #a2191f; }
+  .badge[data-b="fresh"] { background: #fcf4d6; color: #684e00; }
+  .badge[data-b="actor"] {
+    background: transparent; color: var(--cds-text-secondary);
+    border-inline-start: 3px solid var(--c);
+    font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  }
   .tags { display: flex; flex-wrap: wrap; gap: 4px; }
   .tag {
     display: inline-flex; align-items: center;
@@ -1173,7 +1195,7 @@
 
   @media (max-width: 1180px) {
     .inspector { inline-size: 288px; }
-    .rail { inline-size: 232px; }
+    .rail { inline-size: 256px; }
     .masthead .sub { display: none; }
   }
 </style>
@@ -1221,12 +1243,14 @@
           <div class="pad">
             <cds-select id="selLayout" label-text="Layout" size="sm">
               <cds-select-item value="folder" selected>By folder</cds-select-item>
+              <cds-select-item value="tree">By link, left to right</cds-select-item>
               <cds-select-item value="force">Force</cds-select-item>
             </cds-select>
             <cds-select id="selColour" label-text="Colour by" size="sm">
               <cds-select-item value="type" selected>Type</cds-select-item>
               <cds-select-item value="folder">Folder</cds-select-item>
               <cds-select-item value="status">Status</cds-select-item>
+              <cds-select-item value="author">Author</cds-select-item>
             </cds-select>
             <cds-button id="btnRelayout" kind="tertiary" size="sm">Lay out again</cds-button>
           </div>
@@ -2607,6 +2631,78 @@ lit-html/directives/if-defined.js:
              "#198038", "#002d9c", "#ee538b", "#b28600", "#009d9a", "#012749",
              "#8a3800", "#a56eff"];
   var STATUS_COLOUR = { stable: "#198038", draft: "#b28600", deprecated: "#a2191f", none: "#8d8d8d" };
+  var ACTOR_COLOUR = {
+    human: "#0f62fe", agent: "#a56eff", process: "#b28600",
+    company: "#009d9a", none: "#8d8d8d"
+  };
+  var ACTOR_LABEL = {
+    human: "a person", agent: "an agent", process: "a process",
+    company: "an organization", none: "not recorded"
+  };
+
+  /* ------------------------------------------------------- actors and trust */
+  /* The format gives three actor forms in its section 7, and the profile adds
+     a fourth for an organization. The producer of an agent carries a slash,
+     which is what separates it from a bare name. */
+  function actorKind(s) {
+    if (typeof s !== "string" || !s) { return "none"; }
+    if (s.indexOf("human:") === 0) { return "human"; }
+    if (s.indexOf("process:") === 0) { return "process"; }
+    if (s.indexOf("company:") === 0) { return "company"; }
+    if (s.indexOf("/") > 0) { return "agent"; }
+    return "none";
+  }
+
+  function generatedBy(fm) {
+    var g = fm && fm.generated;
+    if (!g) { return ""; }
+    if (typeof g === "string") { return g; }
+    return typeof g.by === "string" ? g.by : "";
+  }
+
+  /* A bare mapping counts as a list of one, which the format's section 11
+     tells a consumer it must do. */
+  function verifiedList(fm) {
+    var v = fm && fm.verified;
+    if (!v) { return []; }
+    if (Array.isArray(v)) { return v.filter(function (e) { return e && typeof e === "object"; }); }
+    if (typeof v === "object") { return [v]; }
+    return [];
+  }
+
+  /* The three tiers of section 5.3, lowest first. Nothing in the test bundle
+     carries a verified key yet, so every document reads unverified today.
+     The tier is still derived, because the field is what decides it and not
+     the corpus that happens to be loaded. */
+  function trustTier(fm) {
+    var list = verifiedList(fm);
+    if (!list.length) { return "unverified"; }
+    var human = list.some(function (e) { return actorKind(e.by) === "human"; });
+    return human ? "human-reviewed" : "machine-confirmed";
+  }
+
+  function verifiedAt(fm) {
+    var best = "";
+    verifiedList(fm).forEach(function (e) {
+      var at = typeof e.at === "string" ? e.at : "";
+      if (at > best) { best = at; }
+    });
+    return best;
+  }
+
+  /* Section 5.5 makes this a plain date comparison, with no reference to
+     when the document was read. */
+  function staleness(fm) {
+    var d = fm && fm.stale_after;
+    if (!d) { return null; }
+    var s = String(d).slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) { return null; }
+    var today = new Date();
+    var now = today.getFullYear() + "-" +
+              ("0" + (today.getMonth() + 1)).slice(-2) + "-" +
+              ("0" + today.getDate()).slice(-2);
+    return { on: s, stale: now >= s };
+  }
 
   function hashPick(s, list) {
     var h = 0, i;
@@ -2769,6 +2865,10 @@ lit-html/directives/if-defined.js:
         title: typeof fm.title === "string" ? fm.title : baseOf(d.path).replace(/\.md$/i, ""),
         status: typeof fm.status === "string" ? fm.status : "",
         tags: Array.isArray(fm.tags) ? fm.tags.map(String) : [],
+        by: generatedBy(fm),
+        actor: actorKind(generatedBy(fm)),
+        tier: trustTier(fm),
+        stale: staleness(fm),
         outRaw: collectRefs(fm),
         out: [], inn: [], bad: [],
         x: 0, y: 0
@@ -2814,6 +2914,10 @@ lit-html/directives/if-defined.js:
     layout();
     renderRail();
     render();
+    /* The summary is what the panel shows when nothing is selected, and a
+       folder has just been read, so nothing is. Without this the panel sat
+       empty until a person selected a tile and then cleared it again. */
+    renderInspector();
     fit();
 
     $("veil").style.display = "none";
@@ -2912,6 +3016,14 @@ lit-html/directives/if-defined.js:
       .filter(function (s) { return sc[s]; })
       .map(function (s) { return { name: s, n: sc[s] }; });
 
+    /* Who wrote each document, by the kind of actor and not the name. The
+       name is one person in the test bundle, so it would sort into one bucket. */
+    var ac = {};
+    S.docs.forEach(function (d) { ac[d.actor] = (ac[d.actor] || 0) + 1; });
+    S.actors = ["human", "agent", "process", "company", "none"]
+      .filter(function (a) { return ac[a]; })
+      .map(function (a) { return { name: a, n: ac[a] }; });
+
     S.linked = {};
     S.edges.forEach(function (e) {
       if (e.kind === "tree") { return; }
@@ -2922,6 +3034,7 @@ lit-html/directives/if-defined.js:
   function colourOf(d) {
     if (d.ghost) { return "#da1e28"; }
     if (S.colour === "status") { return STATUS_COLOUR[d.status || "none"] || STATUS_COLOUR.none; }
+    if (S.colour === "author") { return ACTOR_COLOUR[d.actor] || ACTOR_COLOUR.none; }
     if (S.colour === "folder") { return hashPick(d.dir.split("/")[0] || "(root)", CAT); }
     return d.type ? hashPick(d.type, CAT) : "#8d8d8d";
   }
@@ -2965,7 +3078,103 @@ lit-html/directives/if-defined.js:
   function allNodes() { return S.docs.concat(S.ghosts); }
 
   function layout() {
-    if (S.layout === "folder") { folderLayout(); } else { forceLayout(); }
+    if (S.layout === "folder") { folderLayout(); return; }
+    if (S.layout === "tree") { treeLayout(); return; }
+    forceLayout();
+  }
+
+  /* One column for each step away from a document that nothing links into.
+     A link runs from one column to the next, so a chain of part_of or of
+     superseded_by reads across the page in the order it was written.
+
+     A link graph is not always a tree: two documents can link to each other,
+     and then no document is first. The layering takes the document that the
+     fewest others link into whenever it has no clean choice, which is the
+     same rule the folder order uses. */
+  function treeLayout() {
+    var ns = allNodes();
+    var linked = [], loose = [];
+    var indeg = {}, out = {};
+    ns.forEach(function (d) { indeg[d.id] = 0; out[d.id] = []; });
+    S.edges.forEach(function (e) {
+      if (e.kind === "tree" || e.a === e.b) { return; }
+      if (out[e.a.id] === undefined || indeg[e.b.id] === undefined) { return; }
+      out[e.a.id].push(e.b);
+      indeg[e.b.id]++;
+    });
+    ns.forEach(function (d) {
+      if (indeg[d.id] || out[d.id].length) { linked.push(d); } else { loose.push(d); }
+    });
+
+    /* Kahn's order, and when a cycle leaves nothing at zero, the least
+       depended upon goes next. */
+    var left = linked.slice(), done = {}, order = [], guard = 0;
+    while (left.length && guard++ < 5000) {
+      var pick = null;
+      left.forEach(function (d) {
+        if (pick === null || indeg[d.id] < indeg[pick.id]) { pick = d; }
+      });
+      left.splice(left.indexOf(pick), 1);
+      done[pick.id] = 1;
+      order.push(pick);
+      out[pick.id].forEach(function (t) { if (!done[t.id]) { indeg[t.id]--; } });
+    }
+
+    /* A document sits one column right of everything that links into it. */
+    var col = {};
+    order.forEach(function (d) { if (col[d.id] === undefined) { col[d.id] = 0; } });
+    order.forEach(function (d) {
+      out[d.id].forEach(function (t) {
+        if (col[t.id] === undefined || col[t.id] <= col[d.id]) { col[t.id] = col[d.id] + 1; }
+      });
+    });
+
+    var cols = [];
+    order.forEach(function (d) {
+      var c = col[d.id] || 0;
+      (cols[c] = cols[c] || []).push(d);
+    });
+
+    /* One pass of the barycentre rule: a document sits level with the mean
+       of what links into it, which takes most of the crossings out. */
+    var row = {}, cw = NW + 130, ch = NH + 24;
+    cols.forEach(function (list, c) {
+      if (c > 0) {
+        list.sort(function (p, q) { return bary(p) - bary(q); });
+      }
+      list.forEach(function (d, i) { row[d.id] = i; });
+    });
+    function bary(d) {
+      var sum = 0, n = 0;
+      S.edges.forEach(function (e) {
+        if (e.kind === "tree" || e.b !== d) { return; }
+        if (row[e.a.id] === undefined) { return; }
+        sum += row[e.a.id]; n++;
+      });
+      return n ? sum / n : 1e6;
+    }
+
+    var tall = 0;
+    cols.forEach(function (list) { tall = Math.max(tall, list.length); });
+    cols.forEach(function (list, c) {
+      var top = (tall - list.length) * ch / 2;
+      list.forEach(function (d, i) {
+        d.x = c * cw;
+        d.y = top + i * ch;
+      });
+    });
+
+    /* Whatever nothing links to goes in a block underneath, out of the way
+       of the chains, in as square a grid as it makes. */
+    var wide = Math.max(1, Math.ceil(Math.sqrt(loose.length * (ch / cw))) * 1);
+    var perRow = Math.max(1, Math.ceil(loose.length / Math.max(1, wide)));
+    var baseY = tall * ch + 120;
+    loose.sort(function (p, q) { return p.path < q.path ? -1 : 1; });
+    loose.forEach(function (d, i) {
+      d.x = (i % perRow) * (NW + 32);
+      d.y = baseY + Math.floor(i / perRow) * ch;
+    });
+    shiftToOrigin(ns);
   }
 
   /* Fruchterman and Reingold, with one extra pull toward the centre of the
@@ -3624,7 +3833,10 @@ lit-html/directives/if-defined.js:
   }
 
   function renderGroups() {
-    if (!S.show.outline) { groupsEl.innerHTML = ""; return; }
+    /* The link layout places a document by what links to it and not by the
+       folder it sits in, so a folder outline there would be a box drawn
+       round tiles that are nowhere near each other. */
+    if (!S.show.outline || S.layout === "tree") { groupsEl.innerHTML = ""; return; }
     var box = groupBoxes();
     var out = [];
     keys(box).sort().forEach(function (g) {
@@ -3875,6 +4087,52 @@ lit-html/directives/if-defined.js:
            (key ? '<span class="tag">' + esc(key) + "</span>" : "") + "</button>";
   }
 
+  /* What the trust and lifecycle fields say about one document. A badge only
+     appears when a field is there to speak for it. Nothing in the test bundle
+     carries verified or stale_after today, so today these stay quiet: the
+     count of unverified documents is one line in the bundle summary, which
+     is the place for it, and not a badge repeated on all of them. */
+  function trustBadges(d) {
+    var out = [];
+    if (d.tier === "human-reviewed" || d.tier === "machine-confirmed") {
+      var at = verifiedAt(d.fm);
+      out.push('<span class="badge" data-b="' + d.tier + '">' +
+               (d.tier === "human-reviewed" ? "Human reviewed" : "Machine confirmed") +
+               (at ? " " + esc(String(at).slice(0, 10)) : "") + "</span>");
+    }
+    if (d.stale) {
+      out.push('<span class="badge" data-b="' + (d.stale.stale ? "stale" : "fresh") + '">' +
+               (d.stale.stale ? "Stale since " : "Review by ") + esc(d.stale.on) + "</span>");
+    }
+    if (d.actor !== "none") {
+      out.push('<span class="badge" data-b="actor" style="--c:' + ACTOR_COLOUR[d.actor] + '">' +
+               esc(d.by) + "</span>");
+    }
+    return out.join("");
+  }
+
+  /* The resource a card describes. It may name another document, an address
+     outside the bundle, or a directory that holds no document of its own. */
+  function resourceRow(d) {
+    var r = d.fm && d.fm.resource;
+    if (typeof r !== "string" || !r) { return ""; }
+    if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(r)) {
+      return '<a class="lnk" href="' + esc(r) + '" target="_blank" rel="noopener noreferrer">' +
+             icon("launch", 14) + '<span class="nm">' + esc(r) + "</span></a>";
+    }
+    var p = resolveHref(r, d.dir);
+    var t = p ? findDoc(p) : null;
+    if (t && t !== d) {
+      return '<button class="lnk" data-go="' + esc(t.id) + '" style="--c:' + colourOf(t) + '">' +
+             icon("right", 14) + '<span class="nm">' + esc(t.title || t.base) + "</span>" +
+             '<span class="tag">resource</span></button>';
+    }
+    /* A card that points at its own folder is describing itself. */
+    return '<div class="lnk" style="--c:var(--cds-border-subtle-01)">' + icon("folder", 14) +
+           '<span class="nm mono">' + esc(r) + "</span>" +
+           (t === d ? '<span class="tag">this</span>' : "") + "</div>";
+  }
+
   function renderInspector() {
     var d = S.sel;
     if (!d) { renderSummary(); return; }
@@ -3900,6 +4158,8 @@ lit-html/directives/if-defined.js:
     if (!d.type) {
       head.push('<p><b>No type.</b> The format needs a type on every concept document.</p>');
     }
+    var badges = trustBadges(d);
+    if (badges) { head.push('<div class="badges">' + badges + "</div>"); }
     if (fm.description) { head.push("<p>" + esc(fm.description) + "</p>"); }
     if (d.tags.length) {
       head.push('<div class="tags">' + d.tags.map(function (t) {
@@ -3908,6 +4168,11 @@ lit-html/directives/if-defined.js:
     }
     head.push('<div><cds-button kind="tertiary" size="sm" id="btnOpen">Open the file</cds-button></div>');
     out.push('<div class="sect">' + head.join("") + "</div>");
+
+    var res = resourceRow(d);
+    if (res) {
+      out.push('<div class="sect"><h4>Resource</h4><div class="stack">' + res + "</div></div>");
+    }
 
     if (keys(fm).length) {
       out.push('<div class="sect"><h4>Frontmatter</h4><div class="slist">' + fmRows(fm) + "</div></div>");
@@ -3955,6 +4220,19 @@ lit-html/directives/if-defined.js:
              '<span class="nm">' + esc(t.name) + '</span><span class="ct">' + t.n + "</span></div>";
     }).join("");
 
+    var tiers = {}, stale = 0, hasVerified = 0, hasStale = 0;
+    S.docs.forEach(function (d) {
+      tiers[d.tier] = (tiers[d.tier] || 0) + 1;
+      if (verifiedList(d.fm).length) { hasVerified++; }
+      if (d.stale) { hasStale++; }
+      if (d.stale && d.stale.stale) { stale++; }
+    });
+    var who = S.actors.slice().sort(function (a, b) { return b.n - a.n; }).map(function (a) {
+      return '<div class="bar2"><span class="sw" style="background:' + ACTOR_COLOUR[a.name] +
+             '"></span><span class="nm">' + esc(ACTOR_LABEL[a.name]) +
+             '</span><span class="ct">' + a.n + "</span></div>";
+    }).join("");
+
     inspEl.innerHTML =
       '<div class="insp-head"><b>' + esc(S.root || "Bundle") + '</b>' +
       '<span class="path">' + tot + " concept documents, " + shown.length + " on the map</span></div>" +
@@ -3970,12 +4248,32 @@ lit-html/directives/if-defined.js:
       '</div><p class="none">A markdown file with no frontmatter is not a concept ' +
       "document under the format, so the map does not load it. The format needs a " +
       "type on every document that it does load.</p></div>" +
+      '<div class="sect"><h4>Trust</h4><div class="slist">' +
+        srow("Human reviewed", tiers["human-reviewed"] || 0) +
+        srow("Machine confirmed", tiers["machine-confirmed"] || 0) +
+        srow("Unverified", tiers.unverified || 0) +
+        srow("Past their review date", stale) +
+      '</div><p class="none">' + trustNote(hasVerified, hasStale) + "</p></div>" +
+      '<div class="sect"><h4>Author</h4><div class="bars">' + who + "</div></div>" +
       '<div class="sect"><h4>Types</h4><div class="bars">' + bars + "</div></div>" +
       '<div class="sect"><h4>How to read the map</h4>' +
       '<p class="none">A line is a path in a frontmatter field. Only the frontmatter is ' +
       "read: the body of a document is never opened. Click a tile to see its fields and " +
       "its links. Nothing here is sent anywhere.</p></div>";
     if (!isFinite(maxT)) { return; }
+  }
+
+  /* What the trust counts mean, for the bundle that is open. The note says
+     which of the two fields the bundle uses, so it never claims something
+     about a bundle it has not read. */
+  function trustNote(verified, stale) {
+    var s = "A tier comes from the verified field, and a review date from stale_after.";
+    if (!verified && !stale) {
+      return s + " No document here carries either field, so they all read unverified.";
+    }
+    if (!verified) { return s + " No document here carries a verified field."; }
+    if (!stale) { return s + " No document here carries a stale_after date."; }
+    return s;
   }
 
   function srow(k, v) {
@@ -4375,11 +4673,18 @@ lit-html/directives/if-defined.js:
   }
 
   window.addEventListener("pointerup", function () {
-    var moved = drag.moved;
+    var moved = drag.moved, mode = drag.mode;
     drag = { mode: null };
     canvasEl.style.cursor = "";
+    if (!moved) { return; }
+    /* Letting go after a move puts the map back to nothing selected. A move
+       is a move and not a choice, so the tile that was carried does not stay
+       lit and the rest of the map does not stay dimmed behind it. A press
+       that travels less than the drag floor is still a click, and that does
+       select. select() lays the routes again through render(). */
+    if (mode === "node" || mode === "group") { select(null); return; }
     /* The routes are found again once the map is still. */
-    if (moved) { renderWires(); }
+    renderWires();
   });
 
   /* Zoom follows how far the wheel turned. A trackpad sends many small
