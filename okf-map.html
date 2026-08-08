@@ -9,7 +9,12 @@
      a folder, a type or a status. It reads the YAML frontmatter and the link
      targets, and nothing else. Built on Carbon, with the design system's
      components and tokens bundled in so the file runs offline. -->
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiBmaWxsPSIjMTYxNjE2Ii8+PHBhdGggZD0iTTcgOUwyNSAxNiAxMSAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNTI1MjUyIiBzdHJva2Utd2lkdGg9IjEuNSIvPjxjaXJjbGUgY3g9IjciIGN5PSI5IiByPSI0IiBmaWxsPSIjNDJiZTY1Ii8+PGNpcmNsZSBjeD0iMjUiIGN5PSIxNiIgcj0iNCIgZmlsbD0iIzQ1ODlmZiIvPjxjaXJjbGUgY3g9IjExIiBjeT0iMjQiIHI9IjQiIGZpbGw9IiNmMWMyMWIiLz48L3N2Zz4=">
+<!-- The mark, drawn from the network map icon. It is embedded so the file
+     still carries its own icon when a person moves it on its own;
+     icons/favicon.ico beside it is for anything that wants a real icon
+     file. -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9Ii0yNiAtMjYgNjUyIDY1MiI+PHJlY3QgeD0iLTI2IiB5PSItMjYiIHdpZHRoPSI2NTIiIGhlaWdodD0iNjUyIiBmaWxsPSIjMTYxNjE2Ii8+PHBhdGggZD0iTTUzMCA3MEw1MzAgMjMwUTUzMCAzMDAgNDYwIDMwMEwzMDAgMzAwIiBmaWxsPSJub25lIiBzdHJva2U9IiNmNGY0ZjQiIHN0cm9rZS13aWR0aD0iNDQiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjxwYXRoIGQ9Ik03MCA3MEwyMzAgNzBRMzAwIDcwIDMwMCAxNDBMMzAwIDMwMCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZjRmNGY0IiBzdHJva2Utd2lkdGg9IjQ0IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz48cGF0aCBkPSJNMzAwIDMwMEwzMDAgNTMwIiBmaWxsPSJub25lIiBzdHJva2U9IiNmNGY0ZjQiIHN0cm9rZS13aWR0aD0iNDQiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjxwYXRoIGQ9Ik01MzAgNTMwTDcwIDUzMCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZjRmNGY0IiBzdHJva2Utd2lkdGg9IjQ0IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz48Y2lyY2xlIGN4PSI1MzAiIGN5PSI3MCIgcj0iNjAiIGZpbGw9IiNmMWMyMWIiIHN0cm9rZT0iI2Y0ZjRmNCIgc3Ryb2tlLXdpZHRoPSI0NCIvPjxjaXJjbGUgY3g9IjcwIiBjeT0iNzAiIHI9IjYwIiBmaWxsPSIjZmY4Mzg5IiBzdHJva2U9IiNmNGY0ZjQiIHN0cm9rZS13aWR0aD0iNDQiLz48Y2lyY2xlIGN4PSIzMDAiIGN5PSIzMDAiIHI9IjYwIiBmaWxsPSIjZmY4Mzg5IiBzdHJva2U9IiNmNGY0ZjQiIHN0cm9rZS13aWR0aD0iNDQiLz48Y2lyY2xlIGN4PSI1MzAiIGN5PSI1MzAiIHI9IjYwIiBmaWxsPSIjNzhhOWZmIiBzdHJva2U9IiNmNGY0ZjQiIHN0cm9rZS13aWR0aD0iNDQiLz48Y2lyY2xlIGN4PSI3MCIgY3k9IjUzMCIgcj0iNjAiIGZpbGw9IiNmZmZmZmYiIHN0cm9rZT0iI2Y0ZjRmNCIgc3Ryb2tlLXdpZHRoPSI0NCIvPjwvc3ZnPg==">
+<link rel="alternate icon" type="image/x-icon" href="icons/favicon.ico">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet">
@@ -604,7 +609,9 @@
     padding-inline: 16px; height: 100%;
     font-size: 14px; font-weight: 600; letter-spacing: 0.16px;
   }
-  .masthead .brand svg { inline-size: 20px; block-size: 20px; }
+  /* 24px rather than 20px: the mark carries five nodes, and below about
+     this size they close up into a blob. */
+  .masthead .brand svg { inline-size: 24px; block-size: 24px; }
   .masthead .divider { inline-size: 1px; block-size: 24px; background: #525252; }
   .masthead .sub {
     padding-inline: 16px;
@@ -1175,12 +1182,20 @@
 
 <div class="masthead">
   <span class="brand">
-    <svg viewBox="0 0 32 32" aria-hidden="true">
-      <path d="M9 8H23V10H9zM9 15H19V17H9z" fill="#f4f4f4"/>
-      <circle cx="7" cy="9" r="3" fill="#42be65"/>
-      <circle cx="25" cy="16" r="3" fill="#4589ff"/>
-      <circle cx="11" cy="24" r="3" fill="#f1c21b"/>
-      <path d="M7 9L25 16 11 24" fill="none" stroke="#525252" stroke-width="1.2"/>
+    <svg viewBox="-26 -26 652 652" aria-hidden="true">
+      <g fill="none" stroke="#f4f4f4" stroke-width="44" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M530 70L530 230Q530 300 460 300L300 300"/>
+        <path d="M70 70L230 70Q300 70 300 140L300 300"/>
+        <path d="M300 300L300 530"/>
+        <path d="M530 530L70 530"/>
+      </g>
+      <g stroke="#f4f4f4" stroke-width="44">
+        <circle cx="530" cy="70" r="60" fill="#f1c21b"/>
+        <circle cx="70" cy="70" r="60" fill="#ff8389"/>
+        <circle cx="300" cy="300" r="60" fill="#ff8389"/>
+        <circle cx="530" cy="530" r="60" fill="#78a9ff"/>
+        <circle cx="70" cy="530" r="60" fill="#ffffff"/>
+      </g>
     </svg>
     OKF Map
   </span>
