@@ -704,11 +704,13 @@
     padding-block: 4px 16px; padding-inline: 0 0;
   }
   .pad { padding-inline: 16px; display: flex; flex-direction: column; gap: 12px; }
+  /* The same size as a paragraph in the panel on the other side. Help that
+     is set smaller than the text it explains reads as a footnote. */
   .rail .note {
-    margin: 4px 16px; padding: 12px;
+    margin: 4px 0; padding: 12px 14px;
     background: var(--cds-layer-02);
     border-inline-start: 3px solid var(--cds-border-subtle-01);
-    font-size: var(--cds-label-01-font-size);
+    font-size: 14px;
     line-height: 1.5; color: var(--cds-text-secondary);
   }
   .field-label {
@@ -978,7 +980,36 @@
     inline-size: 328px; flex: none;
     background: var(--cds-layer-01);
     border-inline-start: 1px solid var(--cds-border-subtle-01);
-    overflow-y: auto; scrollbar-width: thin;
+    overflow-y: auto;
+  }
+
+  /* The bar the operating system draws is a different shape and a different
+     grey from everything else on the page. This one is a plain rectangle
+     with square ends, in the design's own greys. It goes quiet ten seconds
+     after the last scroll: only the thumb goes, and the space it sits in
+     stays reserved, so nothing on the page moves as it comes and goes. The
+     rail and the resource row keep their own hidden bars.
+
+     The two engines are addressed apart on purpose. Chrome drops every
+     ::-webkit- rule on an element that also carries scrollbar-color, so the
+     standard properties go to Gecko alone, which has no ::-webkit- rules to
+     drop. */
+  :is(.inspector, .vw-body)::-webkit-scrollbar { inline-size: 10px; block-size: 10px; }
+  :is(.inspector, .vw-body)::-webkit-scrollbar-track { background: transparent; }
+  :is(.inspector, .vw-body)::-webkit-scrollbar-thumb {
+    background: var(--cds-border-strong-01); border-radius: 0;
+    transition: background-color 240ms cubic-bezier(0.2, 0, 0.38, 0.9);
+  }
+  :is(.inspector, .vw-body)::-webkit-scrollbar-thumb:hover { background: var(--cds-text-secondary); }
+  :is(.inspector, .vw-body)::-webkit-scrollbar-corner { background: transparent; }
+  :is(.inspector, .vw-body)[data-quiet="1"]::-webkit-scrollbar-thumb { background: transparent; }
+
+  @supports (-moz-appearance: none) {
+    :is(.inspector, .vw-body) {
+      scrollbar-width: thin;
+      scrollbar-color: var(--cds-border-strong-01) transparent;
+    }
+    :is(.inspector, .vw-body)[data-quiet="1"] { scrollbar-color: transparent transparent; }
   }
   .insp-head {
     padding: 16px; border-block-end: 1px solid var(--cds-border-subtle-01);
@@ -1127,7 +1158,7 @@
   .vw-close:hover { background: var(--cds-layer-hover-01); }
   .vw-close:focus-visible { outline: 2px solid var(--cds-focus); outline-offset: -2px; }
   .vw-close svg { fill: currentColor; }
-  .vw-body { flex: 1; overflow-y: auto; scrollbar-width: thin; }
+  .vw-body { flex: 1; overflow-y: auto; }
   .vw-pad { padding: 24px 32px 64px; max-inline-size: 720px; }
   .vw-sec {
     font-size: var(--cds-label-01-font-size);
@@ -1360,30 +1391,24 @@
 
         <cds-accordion-item title="Help">
           <p class="note">
-            Choose a folder. The map finds every markdown file under it, keeps
-            the ones that carry YAML frontmatter, and draws one tile for each.
-            It reads the frontmatter of a file and nothing else.
+            Choose a folder. The map keeps every markdown file that carries
+            YAML frontmatter, and reads that frontmatter alone.
           </p>
           <p class="note">
-            A solid line is a path in a frontmatter field, such as
-            <span class="mono">sources</span> or
-            <span class="mono">resource</span>. A red line points at a path
-            that no document answers to.
+            A solid line is a frontmatter path. A red one has no document at
+            the other end.
           </p>
           <p class="note">
-            Switch on Body links and the map reads each file once more, in
-            full, and draws the markdown links in the prose as dashed lines.
-            It leaves out any link inside a fenced code block, because a
-            specification that quotes markdown at itself is giving an example
-            and not naming a document.
+            Switch on Body links and the map reads each file in full, then
+            draws the links in its prose as dashed lines. It leaves out a
+            link in a code block.
           </p>
           <p class="note">
-            Use the lists above to hide a folder, a type or a status. Click a
-            tile to see its frontmatter and its links.
+            Click a tile for its frontmatter. The lists above hide a folder,
+            a type or a status.
           </p>
           <p class="note">
-            Drag a tile to move it. To move a whole folder, drag it by the
-            name above its outline, or by the outline itself.
+            Drag a tile to move it. Drag a folder by its name or its outline.
           </p>
         </cds-accordion-item>
 
@@ -4598,7 +4623,30 @@ lit-html/directives/if-defined.js:
            (t === d ? '<span class="tag">this</span>' : "") + "</div>";
   }
 
+  /* --------------------------------------------------------- the scrollbar */
+  /* A scrollbar states how far down a long thing you are, and once you have
+     stopped it has nothing left to say. Ten seconds after the last scroll the
+     thumb goes, and the next scroll brings it back. The track keeps its
+     space, so no text moves when it does. */
+  var QUIET = 10000;
+  var SCROLLERS = ".inspector, .vw-body";
+  var quiet = new WeakMap();
+
+  function stir(el) {
+    if (!el || !el.setAttribute) { return; }
+    el.setAttribute("data-quiet", "0");
+    clearTimeout(quiet.get(el));
+    quiet.set(el, setTimeout(function () { el.setAttribute("data-quiet", "1"); }, QUIET));
+  }
+
+  /* Scroll does not bubble, so it is taken on the way down instead. */
+  document.addEventListener("scroll", function (ev) { stir(ev.target); }, true);
+  document.addEventListener("wheel", function (ev) {
+    stir(ev.target.closest ? ev.target.closest(SCROLLERS) : null);
+  }, true);
+
   function renderInspector() {
+    stir(inspEl);
     var d = S.sel;
     if (!d) { renderSummary(); return; }
     if (d.ghost) {
@@ -5087,6 +5135,7 @@ lit-html/directives/if-defined.js:
         "</div>" +
       "</div>";
     $("vwClose").addEventListener("click", closeViewer);
+    stir($("vwBody"));
 
     d.file.text().then(function (text) {
       if (viewerDoc !== d) { return; }
