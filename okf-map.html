@@ -918,6 +918,24 @@
     color: var(--cds-text-secondary);
   }
   .veil .bar { display: flex; align-items: center; gap: 8px; }
+  /* Carbon's primary button, as a label rather than a button, so a click on
+     it opens the file dialog through the browser and not through script. */
+  .pick-btn {
+    display: inline-flex; align-items: center;
+    min-block-size: 48px; padding: 14px 63px 14px 15px;
+    background: var(--cds-button-primary, #0f62fe); color: var(--cds-text-on-color, #fff);
+    border: 1px solid transparent;
+    font-family: inherit; font-size: 14px; font-weight: 400;
+    letter-spacing: 0.16px; line-height: 1.28572;
+    cursor: pointer; user-select: none;
+    transition: background-color 70ms cubic-bezier(0,0,.38,.9);
+  }
+  .pick-btn:hover { background: var(--cds-button-primary-hover, #0050e6); }
+  .pick-btn:active { background: var(--cds-button-primary-active, #002d9c); }
+  .pick-btn:focus-visible {
+    outline: 2px solid var(--cds-focus); outline-offset: -4px;
+    border-color: var(--cds-focus);
+  }
   .prog {
     inline-size: 260px; block-size: 4px;
     background: var(--cds-layer-accent-01); overflow: hidden;
@@ -1239,7 +1257,8 @@
   <span class="sub" id="rootName">No folder chosen</span>
   <span class="spacer"></span>
   <span class="counts" id="counts"></span>
-  <button class="hdr-action" id="btnPick" aria-label="Choose a folder" title="Choose a folder"></button>
+  <label class="hdr-action" id="btnPick" for="picker" title="Choose a folder"
+         role="button" tabindex="0" aria-label="Choose a folder"></label>
 </div>
 
 <div class="shell">
@@ -1357,7 +1376,7 @@
           that frontmatter alone. Nothing leaves this page.
         </p>
         <div class="bar">
-          <cds-button id="btnPick2" kind="primary" size="md">Choose a folder</cds-button>
+          <label class="pick-btn" id="btnPick2" for="picker" role="button" tabindex="0">Choose a folder</label>
         </div>
         <div class="prog" id="prog" style="display:none"><i id="progBar"></i></div>
         <div class="progline" id="progLine" style="display:none">
@@ -2747,7 +2766,7 @@ lit-html/directives/if-defined.js:
     skipped: 0,          /* markdown files that carry no frontmatter */
     /* body is off, and it stays off until a person asks: the map reads the
        frontmatter of a file and nothing else until then. */
-    show: { ref: true, body: false, tree: false, broken: true,
+    show: { ref: true, body: false, tree: false, broken: false,
             alone: true, outline: true, focus: true },
     bodiesRead: false,   /* whether the bodies have been read, once */
     readingBodies: false,
@@ -2883,12 +2902,30 @@ lit-html/directives/if-defined.js:
      producer is free to add, which the format allows and does not list.
      A key that is not here is never read as a link, so a sentence in a
      description that happens to name a file does not become an edge. */
+  /* The keys that name another concept document. A key belongs here only if
+     its value is a document by nature, because every one of these draws a
+     line and reports a path that answers to nothing as missing.
+
+     resource is deliberately absent, and so are computation, executor and
+     attester. Section 4.1 makes resource the URI of the asset a concept
+     describes, which is the thing the document is about and not another
+     document: a dataset folder, a table, an endpoint. The profile says the
+     same in one line, that resource is the path to the asset a card
+     describes. Those paths need not name a document, need not be markdown,
+     and need not be in the bundle at all, so calling one missing is a claim
+     about a document nobody wrote. The inspector shows resource in a row of
+     its own, which is where it belongs.
+
+     sources[].resource stays a link, and the walk below reaches it without
+     resource being named here, because sources carries the link-ness down to
+     what sits under it. Section 5.1 is explicit that a source naming another
+     concept is an edge in the bundle graph. */
   var LINK_KEYS = {
-    resource: 1, computation: 1, source: 1, sources: 1,
-    parent: 1, child: 1, children: 1, related: 1, see: 1, see_also: 1,
-    link: 1, links: 1, path: 1, index: 1, requires: 1, depends_on: 1,
-    derived_from: 1, supersedes: 1, superseded_by: 1, replaces: 1,
-    replaced_by: 1, part_of: 1, contains: 1, implements: 1
+    source: 1, sources: 1, derived_from: 1,
+    parent: 1, child: 1, children: 1, part_of: 1, contains: 1, index: 1,
+    supersedes: 1, superseded_by: 1, replaces: 1, replaced_by: 1,
+    related: 1, see: 1, see_also: 1, link: 1, links: 1,
+    requires: 1, depends_on: 1, implements: 1
   };
 
   /* The keys that describe rather than point. A value under one of these
@@ -5061,8 +5098,22 @@ lit-html/directives/if-defined.js:
   $("zoomFit").innerHTML = icon("fit", 16);
 
   $("picker").addEventListener("change", function (ev) { load(ev.target.files); });
-  $("btnPick").addEventListener("click", function () { $("picker").click(); });
-  $("btnPick2").addEventListener("click", function () { $("picker").click(); });
+  /* Nothing here opens the folder dialog. Both triggers are labels bound to
+     the input, so the browser opens it natively, on a real click, with the
+     user activation intact. Asking for it from script worked in Chrome and
+     was the fragile way to do it: Firefox puts a directory upload behind its
+     own confirmation, and a scripted click is the wrong footing to ask from.
+     A keyboard press on a label does not activate it, so that part stays. */
+  function pickKey(ev) {
+    if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); $("picker").click(); }
+  }
+  $("btnPick").addEventListener("keydown", pickKey);
+  $("btnPick2").addEventListener("keydown", pickKey);
+
+  /* A dismissed dialog used to leave the page looking dead. */
+  $("picker").addEventListener("cancel", function () {
+    if (!S.docs.length) { progress("No folder was chosen.", 0, ""); $("btnPick2").style.display = ""; }
+  });
 
   $("zoomIn").addEventListener("click", function () { zoomBy(1.2); });
   $("zoomOut").addEventListener("click", function () { zoomBy(1 / 1.2); });
