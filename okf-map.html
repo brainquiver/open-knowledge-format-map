@@ -829,6 +829,10 @@
     fill: none; stroke: var(--cds-border-strong-01); stroke-width: 1.25;
     stroke-linejoin: round; stroke-linecap: round;
   }
+  /* A frontmatter link is solid, because the format's own fields are what
+     the map is built on. A body link is dashed: it is prose, and a reader
+     should be able to tell the two apart at a glance. */
+  .wire[data-kind="body"] { stroke-dasharray: 6 4; }
   .wire[data-kind="tree"] { stroke: var(--cds-border-subtle-01); stroke-dasharray: 2 4; }
   .wire[data-kind="broken"] { stroke: var(--cds-support-error); stroke-dasharray: 3 3; }
   .wire[data-on="1"] { stroke: var(--cds-interactive); stroke-width: 2; }
@@ -918,7 +922,17 @@
     inline-size: 260px; block-size: 4px;
     background: var(--cds-layer-accent-01); overflow: hidden;
   }
-  .prog i { display: block; block-size: 100%; background: var(--cds-interactive); inline-size: 0; }
+  .prog i {
+    display: block; block-size: 100%; background: var(--cds-interactive); inline-size: 0;
+    transition: inline-size 90ms cubic-bezier(.2,0,.38,.9);
+  }
+  /* The count and the percentage, on Carbon's helper text metrics */
+  .progline {
+    inline-size: 260px;
+    display: flex; justify-content: space-between; gap: 8px;
+    font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+    font-size: 12px; color: var(--cds-text-secondary);
+  }
 
   /* ------------------------------------------------------------ inspector */
   .inspector {
@@ -1284,13 +1298,20 @@
           <p class="note">
             Choose a folder. The map finds every markdown file under it, keeps
             the ones that carry YAML frontmatter, and draws one tile for each.
-            It never reads the body of a document.
+            It reads the frontmatter of a file and nothing else.
           </p>
           <p class="note">
-            A line is a path in a frontmatter field, such as
+            A solid line is a path in a frontmatter field, such as
             <span class="mono">sources</span> or
             <span class="mono">resource</span>. A red line points at a path
             that no document answers to.
+          </p>
+          <p class="note">
+            Switch on Body links and the map reads each file once more, in
+            full, and draws the markdown links in the prose as dashed lines.
+            It leaves out any link inside a fenced code block, because a
+            specification that quotes markdown at itself is giving an example
+            and not naming a document.
           </p>
           <p class="note">
             Use the lists above to hide a folder, a type or a status. Click a
@@ -1339,6 +1360,9 @@
           <cds-button id="btnPick2" kind="primary" size="md">Choose a folder</cds-button>
         </div>
         <div class="prog" id="prog" style="display:none"><i id="progBar"></i></div>
+        <div class="progline" id="progLine" style="display:none">
+          <span id="progCount"></span><span id="progPct"></span>
+        </div>
       </div>
     </div>
   </div>
@@ -2722,8 +2746,13 @@ lit-html/directives/if-defined.js:
     types: [],
     statuses: [],
     skipped: 0,          /* markdown files that carry no frontmatter */
-    show: { ref: true, tree: false, broken: true,
+    /* body is off, and it stays off until a person asks: the map reads the
+       frontmatter of a file and nothing else until then. */
+    show: { ref: true, body: false, tree: false, broken: true,
             alone: true, outline: true, focus: true },
+    bodiesRead: false,   /* whether the bodies have been read, once */
+    readingBodies: false,
+    ghostPos: {},        /* where each missing target sat, kept across a rewire */
     linked: {},          /* the id of every document that a link touches */
     offDir: {}, offType: {}, offStatus: {},
     open: {},            /* which folder rows are expanded */
@@ -2746,26 +2775,68 @@ lit-html/directives/if-defined.js:
     });
   }
 
+  /* ------------------------------------------------------------- progress */
+  /* One panel for every stage of a load. A large folder spends most of its
+     time reading, so reading takes most of the bar, and the stages after it
+     take the rest. The panel says which stage is running, because a bar that
+     stops moving with no word for it looks like a bar that has stuck. */
+  var PROG = { read: 0.70, links: 0.08, layout: 0.10, routes: 0.12 };
+
+  function progress(text, frac, count) {
+    var pc = Math.round(clamp(frac, 0, 1) * 100);
+    $("veilTitle").textContent = "Reading the folder";
+    $("veilText").textContent = text;
+    $("btnPick2").style.display = "none";
+    $("prog").style.display = "";
+    $("progLine").style.display = "";
+    $("progBar").style.width = pc + "%";
+    $("progCount").textContent = count || "";
+    $("progPct").textContent = pc + "%";
+    $("veil").style.display = "";
+  }
+
+  function progressDone() {
+    $("veil").style.display = "none";
+    $("prog").style.display = "none";
+    $("progLine").style.display = "none";
+  }
+
+  /* Run each stage after the browser has had the chance to draw the one
+     before it, or the whole panel would appear only once, at the end. */
+  function stages(list) {
+    var i = 0;
+    (function next() {
+      if (i >= list.length) { return; }
+      var s = list[i++];
+      /* A count may be a function, because the number it reports is often
+         only known once the stage before it has run. */
+      progress(s.text, s.frac, (typeof s.count === "function" ? s.count() : s.count) || "");
+      setTimeout(function () { s.run(); next(); }, 16);
+    })();
+  }
+
   function load(fileList) {
     var all = Array.prototype.slice.call(fileList);
     if (!all.length) { return; }
     var first = all[0].webkitRelativePath || all[0].name;
     S.root = first.split("/")[0];
 
-    var picked = all.filter(function (f) {
-      var rel = (f.webkitRelativePath || f.name).split("/").slice(1).join("/");
-      return /\.md$/i.test(rel) && !skipPath(rel);
-    });
+    progress("Looking for markdown files.", 0, all.length + " files in the folder");
 
-    $("veilTitle").textContent = "Reading the folder";
-    $("veilText").textContent = picked.length + " markdown files found.";
-    $("btnPick2").style.display = "none";
-    $("prog").style.display = "";
-    $("veil").style.display = "";
-
-    readAll(picked.map(function (f) {
-      return { path: (f.webkitRelativePath || f.name).split("/").slice(1).join("/"), file: f };
-    }));
+    setTimeout(function () {
+      var picked = all.filter(function (f) {
+        var rel = (f.webkitRelativePath || f.name).split("/").slice(1).join("/");
+        return /\.md$/i.test(rel) && !skipPath(rel);
+      });
+      if (!picked.length) {
+        progress("No markdown file was found in that folder.", 0, "");
+        $("btnPick2").style.display = "";
+        return;
+      }
+      readAll(picked.map(function (f) {
+        return { path: (f.webkitRelativePath || f.name).split("/").slice(1).join("/"), file: f };
+      }));
+    }, 16);
   }
 
   /* Only the first 64 KiB of a file is ever fetched, and only the part of
@@ -2775,20 +2846,32 @@ lit-html/directives/if-defined.js:
 
   function readAll(list) {
     var i = 0, kept = [], skipped = 0;
+    var every = Math.max(1, Math.round(list.length / 60));
+    function show() {
+      progress("Reading the frontmatter of each file.",
+               (i / list.length) * PROG.read,
+               i + " of " + list.length + " files");
+    }
     function next() {
-      if (i >= list.length) { S.skipped = skipped; build(kept); return; }
+      if (i >= list.length) {
+        S.skipped = skipped;
+        build(kept);
+        return;
+      }
       var d = list[i];
       d.file.slice(0, HEAD).text().then(function (head) {
         var fm = frontmatterOnly(head);
         if (fm === null) { skipped++; } else { d.fmText = fm; kept.push(d); }
+        step();
+      }, function () { skipped++; step(); });
+      function step() {
         i++;
-        if (i % 12 === 0) {
-          $("progBar").style.width = Math.round((i / list.length) * 100) + "%";
-          setTimeout(next, 0);
-        } else { next(); }
-      }, function () { skipped++; i++; next(); });
+        /* Give the panel about sixty updates over the whole folder, whatever
+           its size, and yield the thread each time so the bar moves. */
+        if (i % every === 0) { show(); setTimeout(next, 0); } else { next(); }
+      }
     }
-    $("veilText").textContent = "Reading the frontmatter of " + list.length + " files.";
+    show();
     next();
   }
 
@@ -2847,8 +2930,6 @@ lit-html/directives/if-defined.js:
   }
 
   function build(list) {
-    $("veilText").textContent = "Building the map.";
-
     S.docs = []; S.byPath = {}; S.byName = {}; S.ghosts = []; S.edges = [];
 
     list.forEach(function (d) {
@@ -2878,51 +2959,192 @@ lit-html/directives/if-defined.js:
       (S.byName[doc.base] = S.byName[doc.base] || []).push(doc);
     });
 
-    /* Resolve every link. A path that no file answers to becomes a ghost,
-       because the profile says a link may point at unwritten knowledge. */
-    var ghostBy = {};
+    var n = S.docs.length;
+    stages([
+      { text: "Resolving the links.", frac: PROG.read,
+        count: n + " concept documents", run: wire },
+      { text: "Laying the documents out.", frac: PROG.read + PROG.links,
+        count: n + " tiles", run: layout },
+      { text: "Finding the routes for the lines.",
+        frac: PROG.read + PROG.links + PROG.layout,
+        /* The links a person will see, which is not every edge: the folder
+           structure is built as well and it is off by default. */
+        count: function () {
+          return S.edges.filter(function (e) { return e.kind !== "tree"; }).length + " links";
+        },
+        run: function () {
+          renderRail();
+          render();
+          /* The summary is what the panel shows when nothing is selected, and
+             a folder has just been read, so nothing is. Without this the
+             panel sat empty until a person selected a tile and cleared it. */
+          renderInspector();
+          fit();
+        } },
+      { text: "Done.", frac: 1, count: n + " documents on the map",
+        run: function () {
+          progressDone();
+          $("rootName").textContent = S.root;
+          document.title = "OKF Map - " + S.root;
+        } }
+    ]);
+  }
+
+  /* Turn the paths each document holds into edges. A path that no file
+     answers to becomes a ghost, because the profile says a link may point at
+     unwritten knowledge. This runs again whenever the set of paths changes,
+     which is what happens when a person asks for the body links, so it takes
+     the edges down to nothing first. */
+  function wire() {
+    S.ghosts = []; S.edges = [];
+    S.docs.forEach(function (d) { d.out = []; d.inn = []; d.bad = []; });
+
+    var ghostBy = {}, fresh = [];
     S.docs.forEach(function (doc) {
       var seen = {};
-      doc.outRaw.forEach(function (l) {
+      var raw = S.show.ref ? doc.outRaw.slice() : [];
+      if (S.show.body && doc.bodyRaw) { raw = raw.concat(doc.bodyRaw); }
+      raw.forEach(function (l) {
         var p = resolveHref(l.href, doc.dir);
         if (p === null) { return; }
         var target = findDoc(p);
         if (target === doc) { return; }
-        var key = target ? target.path : p;
+        var kind = l.body ? "body" : "ref";
+        var key = kind + "|" + (target ? target.path : p);
         if (seen[key]) { return; }
         seen[key] = 1;
         if (target) {
-          S.edges.push({ a: doc, b: target, kind: "ref", text: l.key });
-          doc.out.push({ doc: target, kind: "ref", text: l.key });
-          target.inn.push({ doc: doc, kind: "ref", text: l.key });
+          S.edges.push({ a: doc, b: target, kind: kind, text: l.key });
+          doc.out.push({ doc: target, kind: kind, text: l.key });
+          target.inn.push({ doc: doc, kind: kind, text: l.key });
         } else {
           var g = ghostBy[p];
           if (!g) {
             g = ghostBy[p] = { id: "missing:" + p, path: p, dir: dirOf(p),
                                base: baseOf(p), ghost: true, inn: [], x: 0, y: 0 };
+            /* A ghost keeps the place it had, so switching a kind of link on
+               and off does not move the map about. One that is new stands to
+               the right of whatever pointed at it. */
+            var had = S.ghostPos[g.id];
+            if (had) { g.x = had.x; g.y = had.y; } else { fresh.push([g, doc]); }
             S.ghosts.push(g);
           }
           S.edges.push({ a: doc, b: g, kind: "broken", text: l.key });
           doc.bad.push({ path: p, key: l.key });
-          g.inn.push({ doc: doc, kind: "ref", text: l.key });
+          g.inn.push({ doc: doc, kind: kind, text: l.key });
         }
       });
     });
 
+    fresh.forEach(function (pair, i) {
+      pair[0].x = pair[1].x + NW + 90;
+      pair[0].y = pair[1].y + (i % 3) * 44;
+    });
+    S.ghostPos = {};
+    S.ghosts.forEach(function (g) { S.ghostPos[g.id] = { x: g.x, y: g.y }; });
+
     treeEdges();
     buildFacets();
-    layout();
-    renderRail();
-    render();
-    /* The summary is what the panel shows when nothing is selected, and a
-       folder has just been read, so nothing is. Without this the panel sat
-       empty until a person selected a tile and then cleared it again. */
-    renderInspector();
-    fit();
+  }
 
-    $("veil").style.display = "none";
-    $("rootName").textContent = S.root;
-    document.title = "OKF Map - " + S.root;
+  /* The links changed, so the edges are found again. The documents keep the
+     places they hold: nothing here calls the layout, because a person who
+     switches a kind of link on has not asked for the map to be rearranged. */
+  function rewire() {
+    var wasSel = S.sel ? S.sel.id : null;
+    wire();
+    S.sel = null;
+    if (wasSel) {
+      if (S.byPath[wasSel]) { S.sel = S.byPath[wasSel]; }
+      else {
+        S.ghosts.forEach(function (g) { if (g.id === wasSel) { S.sel = g; } });
+      }
+    }
+    if (S.sel && !visible(S.sel)) { S.sel = null; }
+    renderRail(); render(); renderInspector();
+  }
+
+  /* ---------------------------------------------------------- body links */
+  /* A link in the prose of a document, which the map draws only when a person
+     asks for it. The frontmatter alone is what the map reads by default, and
+     a body is not opened until this runs.
+
+     A fenced code block comes out first. A specification quotes markdown at
+     itself, and an example link inside a fence is not a link that anybody
+     wrote between two documents. */
+  var FENCE = /^(\s*)(```|~~~)/;
+
+  function bodyLinks(text) {
+    var out = [], fence = null;
+    bodyOf(text).split(/\r?\n/).forEach(function (line) {
+      var m = line.match(FENCE);
+      if (m) {
+        if (fence === null) { fence = m[2]; } else if (line.indexOf(fence) >= 0) { fence = null; }
+        return;
+      }
+      if (fence !== null) { return; }
+      var clean = line.replace(/`[^`]*`/g, "");
+      var re = /\[([^\]\n]*)\]\(\s*([^)\s]+)(?:\s+"[^"]*")?\s*\)/g, r;
+      while ((r = re.exec(clean)) !== null) {
+        out.push({ href: r[2], key: "body", body: true });
+      }
+    });
+    return out;
+  }
+
+  /* Everything after the frontmatter. */
+  function bodyOf(text) {
+    if (text.slice(0, 3) !== "---") { return text; }
+    var nl = text.indexOf("\n");
+    if (nl < 0) { return ""; }
+    var end = text.indexOf("\n---", nl);
+    if (end < 0) { return ""; }
+    var after = text.indexOf("\n", end + 1);
+    return after < 0 ? "" : text.slice(after + 1);
+  }
+
+  /* Read every body once, then keep the links and drop the prose. Called the
+     first time a person switches the body links on, and never before. */
+  function loadBodies(done) {
+    if (S.bodiesRead || S.readingBodies) { return; }
+    S.readingBodies = true;
+    var list = S.docs.slice(), i = 0;
+    var every = Math.max(1, Math.round(list.length / 60));
+    function show() {
+      progress("Reading each document in full, for the links in its prose.",
+               (i / list.length) * 0.8, i + " of " + list.length + " files");
+    }
+    function next() {
+      if (i >= list.length) {
+        S.readingBodies = false;
+        S.bodiesRead = true;
+        /* The routes for the new links are found next, and that holds the
+           page while it runs. The panel stays up over it, and a moment is
+           left first so the browser can draw it before it blocks. */
+        stages([
+          { text: "Finding the routes for the lines.", frac: 0.8,
+            count: function () {
+              return S.docs.reduce(function (t, d) {
+                return t + (d.bodyRaw ? d.bodyRaw.length : 0);
+              }, 0) + " links in the prose";
+            },
+            run: done },
+          { text: "Done.", frac: 1, count: "", run: progressDone }
+        ]);
+        return;
+      }
+      var d = list[i];
+      d.file.text().then(function (t) {
+        d.bodyRaw = bodyLinks(t);
+        step();
+      }, function () { d.bodyRaw = []; step(); });
+      function step() {
+        i++;
+        if (i % every === 0) { show(); setTimeout(next, 0); } else { next(); }
+      }
+    }
+    show();
+    next();
   }
 
   function exactOrSuffix(p) {
@@ -3984,6 +4206,8 @@ lit-html/directives/if-defined.js:
     var e = [];
     var kinds = [
       { k: "ref", name: "Frontmatter links", n: S.edges.filter(function (x) { return x.kind === "ref"; }).length },
+      { k: "body", name: "Body links",
+        n: S.bodiesRead ? S.edges.filter(function (x) { return x.kind === "body"; }).length : undefined },
       { k: "tree", name: "Folder structure", n: S.edges.filter(function (x) { return x.kind === "tree"; }).length },
       { k: "broken", name: "Missing targets", n: S.edges.filter(function (x) { return x.kind === "broken"; }).length }
     ];
@@ -4031,6 +4255,21 @@ lit-html/directives/if-defined.js:
     }
     if (!btn) { return; }
     var act = btn.getAttribute("data-act"), k = btn.getAttribute("data-k");
+    /* Switching the body links on for the first time has to read the files,
+       so it takes the long way round and comes back here when it is done. */
+    if (act === "kind" && k === "body" && !S.show.body && !S.bodiesRead) {
+      if (S.readingBodies) { return; }
+      loadBodies(function () {
+        S.show.body = true;
+        rewire();
+      });
+      return;
+    }
+    if (act === "kind" && (k === "body" || k === "ref")) {
+      S.show[k] = !S.show[k];
+      rewire();
+      return;
+    }
     if (act === "kind") {
       S.show[k] = !S.show[k];
       if (k === "broken") { S.sel = null; }
@@ -4257,9 +4496,11 @@ lit-html/directives/if-defined.js:
       '<div class="sect"><h4>Author</h4><div class="bars">' + who + "</div></div>" +
       '<div class="sect"><h4>Types</h4><div class="bars">' + bars + "</div></div>" +
       '<div class="sect"><h4>How to read the map</h4>' +
-      '<p class="none">A line is a path in a frontmatter field. Only the frontmatter is ' +
-      "read: the body of a document is never opened. Click a tile to see its fields and " +
-      "its links. Nothing here is sent anywhere.</p></div>";
+      '<p class="none">A solid line is a path in a frontmatter field, and a dashed one is a ' +
+      "markdown link in the prose. " +
+      (S.bodiesRead ? "The bodies have been read once, for those links. "
+                    : "Only the frontmatter has been read: no body has been opened. ") +
+      "Click a tile to see its fields and its links. Nothing here is sent anywhere.</p></div>";
     if (!isFinite(maxT)) { return; }
   }
 
