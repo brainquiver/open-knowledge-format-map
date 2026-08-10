@@ -1103,6 +1103,18 @@
   }
   .stack { display: flex; flex-direction: column; gap: 1px; }
   .none { font-size: 13px; color: var(--cds-text-secondary); }
+  /* A note in the panel, in the card the rail gives Help. The negative
+     margin takes it out past the padding of the section that holds it, so it
+     reads as one band across the panel rather than as a paragraph indented
+     under a list of figures. */
+  /* Two classes, because ".sect p" also sets a margin and would otherwise
+     win on specificity and hold the card inside the padding. */
+  .sect .pnote {
+    margin: 0 -16px; padding: 12px 14px;
+    background: var(--cds-layer-02);
+    border-inline-start: 3px solid var(--cds-border-subtle-01);
+    font-size: 14px; line-height: 1.5; color: var(--cds-text-secondary);
+  }
   .bars { display: flex; flex-direction: column; gap: 6px; }
   .bar2 { display: flex; align-items: center; gap: 8px; font-size: 13px; }
   .bar2 .sw { inline-size: 10px; block-size: 10px; flex: none; }
@@ -4760,7 +4772,7 @@ lit-html/directives/if-defined.js:
         srow("Concept documents", tot) +
         srow("Skipped, no frontmatter", S.skipped) +
         srow("No type", noType) +
-      '</div><p class="none">A markdown file with no frontmatter is not a concept ' +
+      '</div><p class="pnote">A markdown file with no frontmatter is not a concept ' +
       "document under the format, so the map does not load it. The format needs a " +
       "type on every document that it does load." +
       /* Say so when a prefix was taken off every path, because an inference
@@ -4775,11 +4787,11 @@ lit-html/directives/if-defined.js:
         srow("Machine confirmed", tiers["machine-confirmed"] || 0) +
         srow("Unverified", tiers.unverified || 0) +
         srow("Past their review date", stale) +
-      '</div><p class="none">' + trustNote(hasVerified, hasStale) + "</p></div>" +
+      '</div><p class="pnote">' + trustNote(hasVerified, hasStale) + "</p></div>" +
       '<div class="sect"><h4>Author</h4><div class="bars">' + who + "</div></div>" +
       '<div class="sect"><h4>Types</h4><div class="bars">' + bars + "</div></div>" +
       '<div class="sect"><h4>How to read the map</h4>' +
-      '<p class="none">A solid line is a path in a frontmatter field, and a dashed one is a ' +
+      '<p class="pnote">A solid line is a path in a frontmatter field, and a dashed one is a ' +
       "markdown link in the prose. " +
       (S.bodiesRead ? "The bodies have been read once, for those links. "
                     : "Only the frontmatter has been read: no body has been opened. ") +
