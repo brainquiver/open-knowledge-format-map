@@ -5173,6 +5173,21 @@ lit-html/directives/if-defined.js:
   $("btnPick").addEventListener("keydown", pickKey);
   $("btnPick2").addEventListener("keydown", pickKey);
 
+  /* The browser lists the whole folder before it hands anything over, and it
+     says nothing at all while it does. On a folder of any size that wait is
+     the longest part of opening a bundle, and none of it is ours to report:
+     the change event is the first word we get. So the panel goes up as soon
+     as the dialog is asked for, and says what is being waited on. Chrome
+     lists twenty thousand files in a few seconds. Firefox takes far longer
+     over the same folder, and used to leave the page looking broken. */
+  function awaitFolder() {
+    if (S.docs.length) { return; }
+    progress("Waiting for the browser to list the folder.", 0,
+             "a folder with many files takes a while");
+  }
+  $("btnPick").addEventListener("click", awaitFolder);
+  $("btnPick2").addEventListener("click", awaitFolder);
+
   /* A dismissed dialog used to leave the page looking dead. */
   $("picker").addEventListener("cancel", function () {
     if (!S.docs.length) { progress("No folder was chosen.", 0, ""); $("btnPick2").style.display = ""; }
