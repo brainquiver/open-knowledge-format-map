@@ -4343,22 +4343,58 @@ lit-html/directives/if-defined.js:
            "</button>";
   }
 
+  /* What a switch is worth, as drawn over total. A switch that is off reports
+     the total alone, because that is the number a person wants from it: what
+     ticking the box would bring. Nought would tell them nothing. A switch that
+     is on reports both, but only when they differ, and they differ when some
+     other filter is holding part of it back: a folder switched off, a type, or
+     the archive. Equal numbers print once. */
+  function tally(on, drawn, total) {
+    if (total === 0) { return 0; }
+    if (!on) { return total; }
+    return drawn < total ? drawn + " / " + total : total;
+  }
+
+  function edgeTally(kind) {
+    var total = 0, drawn = 0;
+    S.edges.forEach(function (e) {
+      if (e.kind !== kind) { return; }
+      total++;
+      /* Not edgeVisible: that asks the switch as well, and the switch is what
+         this number is describing. Only the other filters count here. */
+      if (visible(e.a) && visible(e.b)) { drawn++; }
+    });
+    return tally(S.show[kind], drawn, total);
+  }
+
+  function docTally(kind, match) {
+    var total = 0, drawn = 0;
+    S.docs.forEach(function (d) {
+      if (!match(d)) { return; }
+      total++;
+      if (visible(d)) { drawn++; }
+    });
+    return tally(S.show[kind], drawn, total);
+  }
+
   function renderRail() {
     var e = [];
     var kinds = [
-      { k: "ref", name: "Frontmatter links", n: S.edges.filter(function (x) { return x.kind === "ref"; }).length },
-      { k: "body", name: "Body links",
-        n: S.bodiesRead ? S.edges.filter(function (x) { return x.kind === "body"; }).length : undefined },
-      { k: "tree", name: "Folder structure", n: S.edges.filter(function (x) { return x.kind === "tree"; }).length },
-      { k: "broken", name: "Missing targets", n: S.edges.filter(function (x) { return x.kind === "broken"; }).length }
+      { k: "ref", name: "Frontmatter links" },
+      { k: "body", name: "Body links" },
+      { k: "tree", name: "Folder structure" },
+      { k: "broken", name: "Missing targets" }
     ];
     kinds.forEach(function (x) {
-      e.push(row({ on: S.show[x.k] ? 1 : 0, k: x.k, act: "kind", name: x.name, n: x.n }));
+      /* Nothing is known about the body links until the files have been read,
+         so the row carries no number rather than a nought that reads as none. */
+      var n = (x.k === "body" && !S.bodiesRead) ? undefined : edgeTally(x.k);
+      e.push(row({ on: S.show[x.k] ? 1 : 0, k: x.k, act: "kind", name: x.name, n: n }));
     });
     e.push(row({ on: S.show.alone ? 1 : 0, k: "alone", act: "kind", name: "Documents with no links",
-                 n: S.docs.filter(function (x) { return !S.linked[x.id]; }).length }));
+                 n: docTally("alone", function (d) { return !S.linked[d.id]; }) }));
     e.push(row({ on: S.show.archive ? 1 : 0, k: "archive", act: "kind", name: "Archived documents",
-                 n: S.docs.filter(function (x) { return x.archived; }).length }));
+                 n: docTally("archive", function (d) { return d.archived; }) }));
     e.push(row({ on: S.show.outline ? 1 : 0, k: "outline", act: "kind", name: "Folder outlines" }));
     e.push(row({ on: S.show.focus ? 1 : 0, k: "focus", act: "kind", name: "Dim the unrelated" }));
     $("edgeBox").innerHTML = e.join("");
