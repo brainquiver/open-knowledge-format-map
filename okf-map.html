@@ -612,7 +612,8 @@
   /* 24px rather than 20px: the mark carries five nodes, and below about
      this size they close up into a blob. */
   .masthead .brand svg { inline-size: 24px; block-size: 24px; }
-  .masthead .divider { inline-size: 1px; block-size: 24px; background: #525252; }
+  .masthead .divider { inline-size: 1px; block-size: 24px; background: #525252; flex: none; }
+  .masthead .divider[hidden] { display: none; }
   .masthead .sub {
     padding-inline: 16px;
     color: #c6c6c6; font-size: 14px;
@@ -1257,7 +1258,10 @@
   @media (max-width: 1180px) {
     .inspector { inline-size: 288px; }
     .rail { inline-size: 256px; }
+    /* The folder name goes on a narrow window, and its divider goes with
+       it, or the bar would show two bars with nothing between them. */
     .masthead .sub { display: none; }
+    .masthead #divCounts { display: none; }
   }
 </style>
 </head>
@@ -1284,10 +1288,20 @@
   </span>
   <span class="divider"></span>
   <span class="sub" id="rootName">No folder chosen</span>
-  <span class="spacer"></span>
+  <!-- What was read belongs with the folder it was read from, so the left of
+       the bar reads as one line: the tool, the folder, and its tally. The
+       divider waits for the tally, because an empty one would leave a bar
+       with nothing after it. -->
+  <span class="divider" id="divCounts" hidden></span>
   <span class="counts" id="counts"></span>
+  <span class="spacer"></span>
+  <!-- The right of the bar holds the two specifications and the folder
+       button. Each divider
+       leads the control after it. -->
   <button class="hdr-text" id="btnOkf" title="Read the Open Knowledge Format">OKF</button>
+  <span class="divider"></span>
   <button class="hdr-text" id="btnProfile" title="Read the Open Knowledge Format Profile">PROFILE</button>
+  <span class="divider"></span>
   <label class="hdr-action" id="btnPick" for="picker" title="Choose a folder"
          role="button" tabindex="0" aria-label="Choose a folder"></label>
 </div>
@@ -4453,6 +4467,7 @@ lit-html/directives/if-defined.js:
     var links = S.edges.filter(function (x) { return x.kind !== "tree" && edgeVisible(x); }).length;
     $("counts").innerHTML = "<span><b>" + shown + "</b> / " + S.docs.length + " docs</span>" +
                             "<span><b>" + links + "</b> links</span>";
+    $("divCounts").hidden = false;
   }
 
   function railClick(ev) {
