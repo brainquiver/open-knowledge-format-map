@@ -2740,7 +2740,6 @@ lit-html/directives/if-defined.js:
     docs: [],            /* one entry for each markdown file */
     ghosts: [],          /* one entry for each link target that is missing */
     byPath: {},
-    byName: {},
     edges: [],
     dirs: [],            /* the folder tree, flattened, in reading order */
     types: [],
@@ -2753,6 +2752,8 @@ lit-html/directives/if-defined.js:
     bodiesRead: false,   /* whether the bodies have been read, once */
     readingBodies: false,
     ghostPos: {},        /* where each missing target sat, kept across a rewire */
+    offset: "",          /* the folders above the chosen one, taken off each path */
+    offsetHits: 0, offsetTried: 0,
     linked: {},          /* the id of every document that a link touches */
     offDir: {}, offType: {}, offStatus: {},
     open: {},            /* which folder rows are expanded */
@@ -2900,6 +2901,19 @@ lit-html/directives/if-defined.js:
     type: 1, status: 1, by: 1, at: 1, version: 1, comment: 1, tags: 1
   };
 
+  /* The keys that name what a document came out of, rather than what comes
+     out of it. A line is drawn the way the work flowed, so for these the
+     arrow runs from the named document into the one that declares the key:
+     a source feeds the document that cites it, and a record contains the
+     instalment that is part of it. The rest read the way they are written.
+
+     children is the mirror of part_of, and superseded_by the mirror of
+     supersedes, so each pair points the same way whichever end declares it. */
+  var FLIP_KEYS = {
+    source: 1, sources: 1, derived_from: 1, part_of: 1, parent: 1,
+    supersedes: 1, replaces: 1, requires: 1, depends_on: 1, implements: 1
+  };
+
   /* Walk the whole frontmatter, at any depth, and take the value of every
      key that names a path. A value that looks like prose is left alone. */
   function collectRefs(fm) {
@@ -2909,28 +2923,34 @@ lit-html/directives/if-defined.js:
       return s.charAt(0) === "/" || s.slice(0, 2) === "./" ||
              s.slice(0, 3) === "../" || /\.md$/i.test(s);
     }
-    function walk(node, key, linky) {
+    /* rel is the outermost key that named a path, which is the relation the
+       reader means. Without it a sources entry would report itself as a
+       resource, because resource is the key its own path sits under. */
+    function walk(node, key, linky, rel) {
       if (node === null || node === undefined) { return; }
       if (NEVER_KEYS[key]) { return; }
       if (Array.isArray(node)) {
-        node.forEach(function (v) { walk(v, key, linky); });
+        node.forEach(function (v) { walk(v, key, linky, rel); });
         return;
       }
       if (typeof node === "object") {
-        keys(node).forEach(function (k) { walk(node[k], k, linky || !!LINK_KEYS[k]); });
+        keys(node).forEach(function (k) {
+          walk(node[k], k, linky || !!LINK_KEYS[k], rel || (LINK_KEYS[k] ? k : null));
+        });
         return;
       }
       if (typeof node !== "string") { return; }
       if (!LINK_KEYS[key] && !linky) { return; }
       if (!looksLikePath(node)) { return; }
-      out.push({ key: key, href: node });
+      var name = rel || key;
+      out.push({ key: name, href: node, flip: !!FLIP_KEYS[name] });
     }
-    walk(fm, "", false);
+    walk(fm, "", false, null);
     return out;
   }
 
   function build(list) {
-    S.docs = []; S.byPath = {}; S.byName = {}; S.ghosts = []; S.edges = [];
+    S.docs = []; S.byPath = {}; S.ghosts = []; S.edges = [];
 
     list.forEach(function (d) {
       var fm = parseFrontmatter(d.fmText) || {};
@@ -2956,7 +2976,6 @@ lit-html/directives/if-defined.js:
       };
       S.docs.push(doc);
       S.byPath[doc.path] = doc;
-      (S.byName[doc.base] = S.byName[doc.base] || []).push(doc);
     });
 
     var n = S.docs.length;
@@ -2998,6 +3017,7 @@ lit-html/directives/if-defined.js:
   function wire() {
     S.ghosts = []; S.edges = [];
     S.docs.forEach(function (d) { d.out = []; d.inn = []; d.bad = []; });
+    detectOffset();
 
     var ghostBy = {}, fresh = [];
     S.docs.forEach(function (doc) {
@@ -3014,9 +3034,17 @@ lit-html/directives/if-defined.js:
         if (seen[key]) { return; }
         seen[key] = 1;
         if (target) {
-          S.edges.push({ a: doc, b: target, kind: kind, text: l.key });
-          doc.out.push({ doc: target, kind: kind, text: l.key });
-          target.inn.push({ doc: doc, kind: kind, text: l.key });
+          /* A key such as sources or part_of names where the work came from,
+             so the line runs from there into the document that declares it. */
+          if (l.flip) {
+            S.edges.push({ a: target, b: doc, kind: kind, text: l.key });
+            target.out.push({ doc: doc, kind: kind, text: l.key });
+            doc.inn.push({ doc: target, kind: kind, text: l.key });
+          } else {
+            S.edges.push({ a: doc, b: target, kind: kind, text: l.key });
+            doc.out.push({ doc: target, kind: kind, text: l.key });
+            target.inn.push({ doc: doc, kind: kind, text: l.key });
+          }
         } else {
           var g = ghostBy[p];
           if (!g) {
@@ -3029,7 +3057,11 @@ lit-html/directives/if-defined.js:
             if (had) { g.x = had.x; g.y = had.y; } else { fresh.push([g, doc]); }
             S.ghosts.push(g);
           }
-          S.edges.push({ a: doc, b: g, kind: "broken", text: l.key });
+          /* The line runs the same way it would if the document existed. The
+             ghost's own list stays a list of who named the path, whichever
+             way the arrow points, because that is what its panel reports. */
+          S.edges.push(l.flip ? { a: g, b: doc, kind: "broken", text: l.key }
+                              : { a: doc, b: g, kind: "broken", text: l.key });
           doc.bad.push({ path: p, key: l.key });
           g.inn.push({ doc: doc, kind: kind, text: l.key });
         }
@@ -3147,30 +3179,75 @@ lit-html/directives/if-defined.js:
     next();
   }
 
-  function exactOrSuffix(p) {
-    if (S.byPath[p]) { return S.byPath[p]; }
-    /* The chosen folder may sit below the bundle root, so a path written
-       from the root does not match on its own. Fall back to the one file
-       whose path ends the same way, and only when exactly one does. */
-    var cand = S.byName[baseOf(p)] || [];
-    var hits = cand.filter(function (d) {
-      return d.path === p || d.path.length > p.length ?
-        d.path.slice(-(p.length + 1)) === "/" + p :
-        p.slice(-(d.path.length + 1)) === "/" + d.path;
-    });
-    return hits.length === 1 ? hits[0] : null;
-  }
-
   /* A path that names a directory resolves to the document that routes it. */
   var DIR_DOCS = ["README.md", "readme.md", "index.md", "INDEX.md"];
 
-  function findDoc(p) {
-    var hit = exactOrSuffix(p);
-    if (hit) { return hit; }
+  /* A path resolves by being the path of a document that was loaded. A path
+     that names a folder resolves to the document that routes that folder. */
+  function docAt(p) {
+    if (S.byPath[p]) { return S.byPath[p]; }
     if (/\.md$/i.test(p)) { return null; }
     for (var i = 0; i < DIR_DOCS.length; i++) {
-      hit = exactOrSuffix(p + "/" + DIR_DOCS[i]);
-      if (hit) { return hit; }
+      if (S.byPath[p + "/" + DIR_DOCS[i]]) { return S.byPath[p + "/" + DIR_DOCS[i]]; }
+    }
+    return null;
+  }
+
+  /* The folder a person chooses is the scope, and a path that leads outside it
+     does not resolve: the map says so by drawing it as a missing target.
+
+     One thing has to be settled first. A path in this bundle is written from
+     the bundle root, so /docs/specs/x.md names a document that loads as
+     specs/x.md when the folder chosen is docs. The two documents are both
+     inside the scope and the link between them is real, so it has to draw.
+
+     The offset is inferred once, for the whole bundle, and applied to every
+     path: find the leading folders that, when taken off, turn the most
+     unresolved paths into documents that were loaded. It is one claim about
+     one bundle, it either holds or it does not, and the summary panel reports
+     which folders it took off so a reader can check it.
+
+     What this deliberately is not is a guess made one path at a time. That is
+     what used to be here, matching a path by its tail, and it bound six paths
+     to the wrong document because every path naming a README.md ends in the
+     same ten characters. A wrong link is worse than a missing one: a missing
+     link is visibly missing. */
+  function detectOffset() {
+    S.offset = ""; S.offsetHits = 0; S.offsetTried = 0;
+    var votes = {};
+    S.docs.forEach(function (doc) {
+      var raw = S.show.ref ? doc.outRaw.slice() : [];
+      if (S.show.body && doc.bodyRaw) { raw = raw.concat(doc.bodyRaw); }
+      raw.forEach(function (l) {
+        var p = resolveHref(l.href, doc.dir);
+        if (p === null || docAt(p)) { return; }
+        S.offsetTried++;
+        var parts = p.split("/"), k;
+        for (k = 1; k < parts.length; k++) {
+          if (docAt(parts.slice(k).join("/"))) {
+            var pre = parts.slice(0, k).join("/");
+            votes[pre] = (votes[pre] || 0) + 1;
+          }
+        }
+      });
+    });
+    keys(votes).forEach(function (pre) {
+      var n = votes[pre];
+      /* The most paths explained wins. On a tie the shortest prefix wins,
+         because taking less off is the weaker claim of the two. */
+      if (n > S.offsetHits || (n === S.offsetHits && S.offset && pre.length < S.offset.length)) {
+        S.offset = pre; S.offsetHits = n;
+      }
+    });
+    if (!S.offsetHits) { S.offset = ""; }
+  }
+
+  function findDoc(p) {
+    var hit = docAt(p);
+    if (hit) { return hit; }
+    if (S.offset) {
+      var pre = S.offset + "/";
+      if (p.slice(0, pre.length) === pre) { return docAt(p.slice(pre.length)); }
     }
     return null;
   }
@@ -4428,7 +4505,9 @@ lit-html/directives/if-defined.js:
               : '<span class="none">Nothing in the bundle links here.</span>') + "</div>");
 
     if (d.bad.length) {
-      out.push('<div class="sect"><h4>Targets that are missing (' + d.bad.length + ')</h4><div class="stack">' +
+      /* Not "targets": a path under sources or part_of names something this
+         document came out of, which is the other end of the arrow. */
+      out.push('<div class="sect"><h4>Paths that are missing (' + d.bad.length + ')</h4><div class="stack">' +
         d.bad.map(function (b) {
           return '<button class="lnk bad" disabled>' + icon("warn", 14) +
                  '<span class="nm">' + esc(b.path) + "</span></button>";
@@ -4486,7 +4565,14 @@ lit-html/directives/if-defined.js:
         srow("No type", noType) +
       '</div><p class="none">A markdown file with no frontmatter is not a concept ' +
       "document under the format, so the map does not load it. The format needs a " +
-      "type on every document that it does load.</p></div>" +
+      "type on every document that it does load." +
+      /* Say so when a prefix was taken off every path, because an inference
+         that a reader cannot see is an inference a reader cannot check. */
+      (S.offset ? " The paths here are written from a folder above this one, so " +
+        "<b>" + esc(S.offset) + "/</b> comes off the front of each of them: that " +
+        "resolves " + S.offsetHits + " of the " + S.offsetTried +
+        " that do not match on their own." : "") +
+      "</p></div>" +
       '<div class="sect"><h4>Trust</h4><div class="slist">' +
         srow("Human reviewed", tiers["human-reviewed"] || 0) +
         srow("Machine confirmed", tiers["machine-confirmed"] || 0) +
