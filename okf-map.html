@@ -1034,6 +1034,15 @@
   .lnk:hover { background: var(--cds-layer-hover-02); }
   .lnk:focus-visible { outline: 2px solid var(--cds-focus); outline-offset: -2px; }
   .lnk .nm { flex: 1; min-inline-size: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* A path is too long for the panel more often than not, and its tail is the
+     part that says which one it is. Hover and it runs to the end and back;
+     a wheel or a trackpad moves it too, at any time. No bar either way. */
+  .lnk .nm.scrollx {
+    overflow-x: auto; text-overflow: clip;
+    scrollbar-width: none; -ms-overflow-style: none;
+    overscroll-behavior-x: contain;
+  }
+  .lnk .nm.scrollx::-webkit-scrollbar { display: none; inline-size: 0; block-size: 0; }
   .lnk svg { fill: var(--cds-icon-secondary); flex: none; }
   .lnk.bad { border-inline-start-color: var(--cds-support-error); color: var(--cds-text-error); cursor: default; }
   .lnk.bad .nm {
@@ -4471,7 +4480,7 @@ lit-html/directives/if-defined.js:
     if (typeof r !== "string" || !r) { return ""; }
     if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(r)) {
       return '<a class="lnk" href="' + esc(r) + '" target="_blank" rel="noopener noreferrer">' +
-             icon("launch", 14) + '<span class="nm">' + esc(r) + "</span></a>";
+             icon("launch", 14) + '<span class="nm mono scrollx">' + esc(r) + "</span></a>";
     }
     var p = resolveHref(r, d.dir);
     var t = p ? findDoc(p) : null;
@@ -4482,7 +4491,7 @@ lit-html/directives/if-defined.js:
     }
     /* A card that points at its own folder is describing itself. */
     return '<div class="lnk" style="--c:var(--cds-border-subtle-01)">' + icon("folder", 14) +
-           '<span class="nm mono">' + esc(r) + "</span>" +
+           '<span class="nm mono scrollx">' + esc(r) + "</span>" +
            (t === d ? '<span class="tag">this</span>' : "") + "</div>";
   }
 
@@ -4547,7 +4556,7 @@ lit-html/directives/if-defined.js:
       out.push('<div class="sect"><h4>Paths that are missing (' + d.bad.length + ')</h4><div class="stack">' +
         d.bad.map(function (b) {
           return '<button class="lnk bad" disabled>' + icon("warn", 14) +
-                 '<span class="nm">' + esc(b.path) + "</span></button>";
+                 '<span class="nm scrollx">' + esc(b.path) + "</span></button>";
         }).join("") + "</div></div>");
     }
 
@@ -4660,6 +4669,60 @@ lit-html/directives/if-defined.js:
       var d = S.sel;
       op.addEventListener("click", function () { openViewer(d); });
     }
+
+    /* Hover a path that does not fit and it runs to its end, waits, and comes
+       back. The row is scrollable at all times, so a wheel or a trackpad can
+       take it there instead, and a pointer that leaves mid-run does not fight
+       the animation: the return is queued behind whatever is still going. */
+    Array.prototype.forEach.call(inspEl.querySelectorAll(".scrollx"), function (el) {
+      var timer = 0;
+      /* The steps are taken here rather than left to scroll-behavior. A smooth
+         scroll is animated by the browser, and an animation that is not running
+         leaves scrollLeft where it was, so the reveal would do nothing at all
+         in a window that is not on top. Stepping it is a few lines and it moves
+         wherever a timer runs.
+
+         140 steps of 20ms is 2.8 seconds end to end, which is the speed to
+         change if it wants changing: more steps for slower, fewer for faster.
+         The interval stays at 20ms so the movement stays smooth at any speed. */
+      function glide(to) {
+        clearTimeout(timer);
+        var from = el.scrollLeft, steps = 140, i = 0;
+        if (Math.abs(to - from) < 2) { el.scrollLeft = to; return; }
+        (function step() {
+          i++;
+          /* ease out, so it settles rather than stops */
+          var t = 1 - Math.pow(1 - i / steps, 3);
+          el.scrollLeft = from + (to - from) * t;
+          if (i < steps) { timer = setTimeout(step, 20); }
+        })();
+      }
+      function over() {
+        var by = el.scrollWidth - el.clientWidth;
+        if (by > 1) { glide(by); }
+      }
+      function out() { glide(0); }
+      var row = el.closest(".lnk") || el;
+      row.addEventListener("pointerenter", over);
+      row.addEventListener("pointerleave", out);
+
+      /* A wheel over the row moves the path sideways. A plain wheel reports a
+         vertical delta and nothing here scrolls vertically, so the vertical
+         delta is what drives it. The event is only taken while there is still
+         somewhere to go: at either end it is left alone, and the panel behind
+         scrolls as it would anywhere else, so the row never traps the wheel. */
+      row.addEventListener("wheel", function (ev) {
+        var by = el.scrollWidth - el.clientWidth;
+        if (by <= 1) { return; }
+        var d = Math.abs(ev.deltaX) > Math.abs(ev.deltaY) ? ev.deltaX : ev.deltaY;
+        if (ev.deltaMode === 1) { d *= 16; } else if (ev.deltaMode === 2) { d *= 380; }
+        var next = clamp(el.scrollLeft + d, 0, by);
+        if (Math.round(next) === Math.round(el.scrollLeft)) { return; }
+        clearTimeout(timer);
+        el.scrollLeft = next;
+        ev.preventDefault();
+      }, { passive: false });
+    });
   }
 
   function select(d) {
