@@ -5223,7 +5223,7 @@ lit-html/directives/if-defined.js:
              VIEWMIN, viewMax, function (w) {
       viewW = w;
       host.querySelector(".viewer").style.inlineSize = Math.round(w) + "px";
-    });
+    }, function () { return $("vwBody"); });
     viewerApply();
 
     d.file.text().then(function (text) {
@@ -5924,26 +5924,75 @@ lit-html/directives/if-defined.js:
                     (tab ? tab.offsetWidth : 0) - 360);
   }
 
+  /* What the contents of a panel may cost, in milliseconds, before the panel
+     stops re-flowing them on every frame. Half a frame. */
+  var PINOVER = 8;
+
+  /* A panel lays its contents out at the width being dragged, so every frame
+     of a drag re-flows the whole document. The RA8M2 datasheet is 45,000
+     elements and 262 tables, and one re-flow of it costs 36ms against a frame
+     of 17, so the edge falls behind the pointer. Removing the tables from that
+     document takes the same re-flow to 6ms, which is where the cost is: a
+     table with no fixed layout measures every cell again at each new width.
+
+     So the contents are pinned instead. They keep the width they had and are
+     marked as laying out on their own, which lets the browser reuse the layout
+     it already has. A pinned document costs 0.1ms a frame rather than 36, and
+     it re-flows once, when the edge stops.
+
+     The decision is measured and not assumed. The first move of a gesture is
+     timed, and only a document that needed more than half a frame is pinned.
+     A short document is never pinned and follows the edge as it moves. */
+  function pinWidth(el) {
+    if (!el) { return; }
+    el.style.inlineSize = Math.round(el.getBoundingClientRect().width) + "px";
+    el.style.contain = "layout";
+  }
+  function unpinWidth(el) {
+    if (!el) { return; }
+    el.style.inlineSize = "";
+    el.style.contain = "";
+  }
+
   /* One gesture for both panels on the right. Press the grip and the edge
      follows the pointer, which widens the panel as it travels left, because
      both panels are anchored to the right edge of the window. */
-  function pullEdge(grip, target, min, maxOf, onWidth) {
+  function pullEdge(grip, target, min, maxOf, onWidth, contentOf) {
     grip.addEventListener("pointerdown", function (ev) {
       if (ev.button !== 0) { return; }
       ev.preventDefault();
       var x0 = ev.clientX;
       var w0 = target().getBoundingClientRect().width;
       var max = maxOf();
+      var content = contentOf ? contentOf() : null;
+      var pinned = false, timed = false;
       grip.setAttribute("data-on", "1");
       document.body.setAttribute("data-sizing", "1");
       grip.setPointerCapture(ev.pointerId);
-      function move(e) { onWidth(clamp(w0 + (x0 - e.clientX), min, max)); }
+      function move(e) {
+        var w = clamp(w0 + (x0 - e.clientX), min, max);
+        if (content && !timed) {
+          timed = true;
+          var t0 = performance.now();
+          onWidth(w);
+          /* Reading the height settles the layout, which is what makes the
+             figure the real cost of the frame and not the cost of asking. */
+          void content.offsetHeight;
+          if (performance.now() - t0 > PINOVER) {
+            pinWidth(content);
+            pinned = true;
+          }
+          return;
+        }
+        onWidth(w);
+      }
       function up() {
         grip.removeEventListener("pointermove", move);
         grip.removeEventListener("pointerup", up);
         grip.removeEventListener("pointercancel", up);
         grip.removeAttribute("data-on");
         document.body.removeAttribute("data-sizing");
+        if (pinned) { unpinWidth(content); }
       }
       grip.addEventListener("pointermove", move);
       grip.addEventListener("pointerup", up);
@@ -5977,7 +6026,7 @@ lit-html/directives/if-defined.js:
     panel.want = w;
     panel.w = w;
     $("inspector").style.inlineSize = Math.round(w) + "px";
-  });
+  }, function () { return $("inspBody"); });
 
   /* A window that narrows can leave either panel wider than the room allows. */
   window.addEventListener("resize", function () {
