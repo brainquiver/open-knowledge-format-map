@@ -988,14 +988,15 @@
   .inspector[hidden] { display: none; }
   .insp-body { flex: 1; overflow-y: auto; min-block-size: 0; }
 
-  /* The grip sits over the panel's own edge, so it takes no width of its own
-     and the panel keeps the width the reader set. */
-  .insp-grip {
+  /* The grip sits over a panel's own edge, so it takes no width of its own and
+     the panel keeps the width the reader set. Both panels on the right use it:
+     the details panel and the file viewer. */
+  .edge-grip {
     position: absolute; inset-block: 0; inset-inline-start: -3px;
     inline-size: 6px; cursor: col-resize; z-index: 3;
     touch-action: none;
   }
-  .insp-grip:hover, .insp-grip[data-on="1"] {
+  .edge-grip:hover, .edge-grip[data-on="1"] {
     background: var(--cds-interactive); opacity: .5;
   }
   /* While the edge is moving, the pointer keeps its shape everywhere and no
@@ -1515,7 +1516,7 @@
   <button class="insp-tab" id="inspTab" title="Show or hide the panel"
           aria-expanded="true">Details</button>
   <div class="inspector" id="inspector">
-    <div class="insp-grip" id="inspGrip" title="Drag the edge to resize the panel"></div>
+    <div class="edge-grip" id="inspGrip" title="Drag the edge to resize the panel"></div>
     <div class="insp-body" id="inspBody"></div>
   </div>
 </div>
@@ -5169,6 +5170,24 @@ lit-html/directives/if-defined.js:
 
   /* -------------------------------------------------------- the sheet */
 
+  /* The width the reader last pulled the viewer to. It holds for the session,
+     so reading a second file does not undo the width chosen for the first. */
+  var VIEWMIN = 360;
+  var viewW = 0;
+
+  /* The viewer floats over the map rather than taking width from it, so the
+     only limit is that a strip of the page stays reachable behind it. */
+  function viewMax() {
+    return Math.max(VIEWMIN, window.innerWidth - 120);
+  }
+
+  function viewerApply() {
+    var el = $("viewerHost").querySelector(".viewer");
+    if (!el || !viewW) { return; }
+    viewW = clamp(viewW, VIEWMIN, viewMax());
+    el.style.inlineSize = Math.round(viewW) + "px";
+  }
+
   function closeViewer() {
     viewerDoc = null;
     $("viewerHost").innerHTML = "";
@@ -5180,6 +5199,7 @@ lit-html/directives/if-defined.js:
     var host = $("viewerHost");
     host.innerHTML =
       '<div class="viewer" role="complementary" aria-label="File">' +
+        '<div class="edge-grip" id="vwGrip" title="Drag the edge to resize"></div>' +
         '<div class="vw-head"><span class="who"><b>' + esc(d.title) + "</b>" +
           '<span class="p">' + esc(d.path) + "</span></span>" +
           '<button class="vw-close" id="vwClose" aria-label="Close">' + icon("close", 20) + "</button>" +
@@ -5193,6 +5213,14 @@ lit-html/directives/if-defined.js:
       "</div>";
     $("vwClose").addEventListener("click", closeViewer);
     stir($("vwBody"));
+    /* The grip is built with the viewer and thrown away with it, so it takes
+       its handler here rather than once at the start. */
+    pullEdge($("vwGrip"), function () { return host.querySelector(".viewer"); },
+             VIEWMIN, viewMax, function (w) {
+      viewW = w;
+      host.querySelector(".viewer").style.inlineSize = Math.round(w) + "px";
+    });
+    viewerApply();
 
     d.file.text().then(function (text) {
       if (viewerDoc !== d) { return; }
@@ -5892,6 +5920,33 @@ lit-html/directives/if-defined.js:
                     (tab ? tab.offsetWidth : 0) - 360);
   }
 
+  /* One gesture for both panels on the right. Press the grip and the edge
+     follows the pointer, which widens the panel as it travels left, because
+     both panels are anchored to the right edge of the window. */
+  function pullEdge(grip, target, min, maxOf, onWidth) {
+    grip.addEventListener("pointerdown", function (ev) {
+      if (ev.button !== 0) { return; }
+      ev.preventDefault();
+      var x0 = ev.clientX;
+      var w0 = target().getBoundingClientRect().width;
+      var max = maxOf();
+      grip.setAttribute("data-on", "1");
+      document.body.setAttribute("data-sizing", "1");
+      grip.setPointerCapture(ev.pointerId);
+      function move(e) { onWidth(clamp(w0 + (x0 - e.clientX), min, max)); }
+      function up() {
+        grip.removeEventListener("pointermove", move);
+        grip.removeEventListener("pointerup", up);
+        grip.removeEventListener("pointercancel", up);
+        grip.removeAttribute("data-on");
+        document.body.removeAttribute("data-sizing");
+      }
+      grip.addEventListener("pointermove", move);
+      grip.addEventListener("pointerup", up);
+      grip.addEventListener("pointercancel", up);
+    });
+  }
+
   function panelApply() {
     var el = $("inspector");
     el.hidden = !panel.open;
@@ -5913,35 +5968,18 @@ lit-html/directives/if-defined.js:
     panelApply();
   });
 
-  $("inspGrip").addEventListener("pointerdown", function (ev) {
-    if (ev.button !== 0) { return; }
-    ev.preventDefault();
-    var grip = $("inspGrip");
-    var x0 = ev.clientX, w0 = $("inspector").getBoundingClientRect().width;
-    var max = panelMax();
-    grip.setAttribute("data-on", "1");
-    document.body.setAttribute("data-sizing", "1");
-    grip.setPointerCapture(ev.pointerId);
-    function move(e) {
-      /* The panel is on the right, so the edge widens it as it travels left. */
-      panel.want = clamp(w0 + (x0 - e.clientX), PANELMIN, max);
-      panel.w = panel.want;
-      $("inspector").style.inlineSize = Math.round(panel.w) + "px";
-    }
-    function up() {
-      grip.removeEventListener("pointermove", move);
-      grip.removeEventListener("pointerup", up);
-      grip.removeEventListener("pointercancel", up);
-      grip.removeAttribute("data-on");
-      document.body.removeAttribute("data-sizing");
-    }
-    grip.addEventListener("pointermove", move);
-    grip.addEventListener("pointerup", up);
-    grip.addEventListener("pointercancel", up);
+  pullEdge($("inspGrip"), function () { return $("inspector"); },
+           PANELMIN, panelMax, function (w) {
+    panel.want = w;
+    panel.w = w;
+    $("inspector").style.inlineSize = Math.round(w) + "px";
   });
 
-  /* A window that narrows can leave the panel wider than the room allows. */
-  window.addEventListener("resize", function () { if (panel.open) { panelApply(); } });
+  /* A window that narrows can leave either panel wider than the room allows. */
+  window.addEventListener("resize", function () {
+    if (panel.open) { panelApply(); }
+    viewerApply();
+  });
 
   $("zoomIn").addEventListener("click", function () { zoomBy(1.2); });
   $("zoomOut").addEventListener("click", function () { zoomBy(1 / 1.2); });
