@@ -1137,7 +1137,10 @@
   }
   .lnk .nm.scrollx::-webkit-scrollbar { display: none; inline-size: 0; block-size: 0; }
   .lnk svg { fill: var(--cds-icon-secondary); flex: none; }
-  .lnk.bad { border-inline-start-color: var(--cds-support-error); color: var(--cds-text-error); cursor: default; }
+  .lnk.bad {
+    border-inline-start-color: var(--cds-support-error);
+    color: var(--cds-text-error); cursor: default;
+  }
   .lnk.bad .nm {
     font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace; font-size: 12px;
     direction: rtl; text-align: start;
@@ -1507,7 +1510,8 @@
           that frontmatter alone. Nothing leaves this page.
         </p>
         <div class="bar">
-          <label class="pick-btn" id="btnPick2" for="picker" role="button" tabindex="0">Choose a folder</label>
+          <label class="pick-btn" id="btnPick2" for="picker"
+                 role="button" tabindex="0">Choose a folder</label>
         </div>
         <div class="prog" id="prog" style="display:none"><i id="progBar"></i></div>
         <div class="progline" id="progLine" style="display:none">
@@ -3727,7 +3731,11 @@ lit-html/directives/if-defined.js:
           var ax = px[i] - px[j], ay = (py[i] - py[j]) * YS;
           var d2 = ax * ax + ay * ay;
           if (d2 > CUT2) { continue; }
-          if (d2 < 1) { ax = ((i * 7 + j * 13) % 11) - 5 + 0.5; ay = ((i * 5 + j * 3) % 11) - 5 + 0.5; d2 = ax * ax + ay * ay; }
+          if (d2 < 1) {
+            ax = ((i * 7 + j * 13) % 11) - 5 + 0.5;
+            ay = ((i * 5 + j * 3) % 11) - 5 + 0.5;
+            d2 = ax * ax + ay * ay;
+          }
           var f = (K * K) / d2;
           dx[i] += ax * f; dy[i] += ay * f * YS;
           dx[j] -= ax * f; dy[j] -= ay * f * YS;
@@ -4281,11 +4289,14 @@ lit-html/directives/if-defined.js:
   function renderWires(quick) {
     var sel = S.sel;
     var out = ['<defs>' +
-      '<marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">' +
+      '<marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6"' +
+      ' markerHeight="6" orient="auto-start-reverse">' +
       '<path d="M0,1 L9,5 L0,9 z" fill="var(--cds-border-strong-01)"/></marker>' +
-      '<marker id="arOn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">' +
+      '<marker id="arOn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6"' +
+      ' markerHeight="6" orient="auto-start-reverse">' +
       '<path d="M0,1 L9,5 L0,9 z" fill="var(--cds-interactive)"/></marker>' +
-      '<marker id="arBad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">' +
+      '<marker id="arBad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6"' +
+      ' markerHeight="6" orient="auto-start-reverse">' +
       '<path d="M0,1 L9,5 L0,9 z" fill="var(--cds-support-error)"/></marker>' +
       "</defs>"];
 
@@ -4715,7 +4726,8 @@ lit-html/directives/if-defined.js:
       inspEl.innerHTML =
         '<div class="insp-head" style="--c:var(--cds-support-error)"><b>Missing document</b>' +
         '<span class="path">' + esc(d.path) + "</span></div>" +
-        '<div class="sect"><p>' + (d.inn.length === 1 ? "One document links" : d.inn.length + " documents link") +
+        '<div class="sect"><p>' +
+        (d.inn.length === 1 ? "One document links" : d.inn.length + " documents link") +
         " to this path, and no file answers to it. The profile lets a link point at " +
         "knowledge that nobody has written yet.</p></div>" +
         '<div class="sect"><h4>Linked from</h4><div class="stack">' +
@@ -5081,7 +5093,9 @@ lit-html/directives/if-defined.js:
         out.push("<table><thead><tr>" + head.map(function (c) {
           return "<th>" + inlineMd(c, dir) + "</th>";
         }).join("") + "</tr></thead><tbody>" + body.map(function (r) {
-          return "<tr>" + r.map(function (c) { return "<td>" + inlineMd(c, dir) + "</td>"; }).join("") + "</tr>";
+          return "<tr>" +
+                 r.map(function (c) { return "<td>" + inlineMd(c, dir) + "</td>"; }).join("") +
+                 "</tr>";
         }).join("") + "</tbody></table>");
         continue;
       }
