@@ -770,15 +770,6 @@
   .frow .car svg { fill: var(--cds-icon-secondary); }
   .frow .car.hidden { visibility: hidden; }
   .flist { display: flex; flex-direction: column; }
-  .fhead {
-    display: flex; gap: 8px; padding: 4px 16px 8px;
-  }
-  .fhead button {
-    border: 0; background: transparent; padding: 0;
-    color: var(--cds-link-primary); font-family: inherit; font-size: 12px;
-    cursor: pointer; text-decoration: underline;
-  }
-  .fhead button:hover { color: var(--cds-link-primary-hover); }
 
   /* --------------------------------------------------------------- canvas */
   .canvas {
@@ -1430,18 +1421,10 @@
         </cds-accordion-item>
 
         <cds-accordion-item title="Folders" open>
-          <div class="fhead">
-            <button data-all="dir" data-v="1">Show all</button>
-            <button data-all="dir" data-v="0">Hide all</button>
-          </div>
           <div class="flist" id="dirBox"></div>
         </cds-accordion-item>
 
         <cds-accordion-item title="Types">
-          <div class="fhead">
-            <button data-all="type" data-v="1">Show all</button>
-            <button data-all="type" data-v="0">Hide all</button>
-          </div>
           <div class="flist" id="typeBox"></div>
         </cds-accordion-item>
 
@@ -4521,6 +4504,24 @@ lit-html/directives/if-defined.js:
     return tally(S.show[kind], drawn, total);
   }
 
+  /* Carbon's select-all is a checkbox above the group, and it carries three
+     states: ticked when every row is on, a dash when some are, and empty when
+     none are. A click on a dash or an empty box turns every row on. */
+  function groupState(list, off) {
+    var on = list.filter(function (x) { return !off[x.name]; }).length;
+    return on === list.length ? 1 : on ? "some" : 0;
+  }
+
+  function allRow(kind, name, list, off) {
+    var n = 0;
+    list.forEach(function (x) { n += x.n; });
+    return row({ on: groupState(list, off), k: kind, act: "all", name: name, n: n });
+  }
+
+  function rootState() {
+    return S.dirs.some(function (x) { return S.offDir[x.path]; }) ? "some" : 1;
+  }
+
   function renderRail() {
     var e = [];
     var kinds = [
@@ -4543,23 +4544,29 @@ lit-html/directives/if-defined.js:
     e.push(row({ on: S.show.focus ? 1 : 0, k: "focus", act: "kind", name: "Dim the unrelated" }));
     $("edgeBox").innerHTML = e.join("");
 
+    /* The root row is the select-all of the folders, because a click on it
+       already carries every folder under it. */
     var d = [];
     S.dirs.forEach(function (x) {
       if (x.path !== "" && !S.open[dirOf(x.path)]) { return; }
-      d.push(row({ on: S.offDir[x.path] ? 0 : 1, k: x.path, act: "dir", name: x.name,
+      var on = S.offDir[x.path] ? 0 : 1;
+      if (x.path === "" && on) { on = rootState(); }
+      d.push(row({ on: on, k: x.path, act: "dir", name: x.name,
                    n: x.n, indent: x.depth, caret: x.kids > 0, open: !!S.open[x.path] }));
     });
     $("dirBox").innerHTML = d.join("");
 
-    $("typeBox").innerHTML = S.types.map(function (x) {
-      return row({ on: S.offType[x.name] ? 0 : 1, k: x.name, act: "type", name: x.name, n: x.n,
-                   colour: x.name === "(no type)" ? "#8d8d8d" : hashPick(x.name, CAT) });
-    }).join("");
+    $("typeBox").innerHTML = allRow("type", "All types", S.types, S.offType) +
+      S.types.map(function (x) {
+        return row({ on: S.offType[x.name] ? 0 : 1, k: x.name, act: "type", name: x.name, n: x.n,
+                     indent: 1, colour: x.name === "(no type)" ? "#8d8d8d" : hashPick(x.name, CAT) });
+      }).join("");
 
-    $("statusBox").innerHTML = S.statuses.map(function (x) {
-      return row({ on: S.offStatus[x.name] ? 0 : 1, k: x.name, act: "status", name: x.name, n: x.n,
-                   colour: STATUS_COLOUR[x.name] });
-    }).join("");
+    $("statusBox").innerHTML = allRow("status", "All statuses", S.statuses, S.offStatus) +
+      S.statuses.map(function (x) {
+        return row({ on: S.offStatus[x.name] ? 0 : 1, k: x.name, act: "status", name: x.name, n: x.n,
+                     indent: 1, colour: STATUS_COLOUR[x.name] });
+      }).join("");
 
     var shown = S.docs.filter(visible).length;
     var links = S.edges.filter(function (x) { return x.kind !== "tree" && edgeVisible(x); }).length;
@@ -4597,7 +4604,12 @@ lit-html/directives/if-defined.js:
     if (act === "kind") {
       S.show[k] = !S.show[k];
       if (k === "broken") { S.sel = null; }
+    } else if (act === "all") {
+      var list = k === "type" ? S.types : S.statuses;
+      setAll(k, groupState(list, k === "type" ? S.offType : S.offStatus) !== 1);
+      return;
     } else if (act === "dir") {
+      if (k === "" && !S.offDir[""] && rootState() === "some") { setAll("dir", true); return; }
       var off = !S.offDir[k];
       /* A folder switch carries every folder under it. */
       S.dirs.forEach(function (x) {
@@ -4618,6 +4630,7 @@ lit-html/directives/if-defined.js:
   function setAll(kind, on) {
     if (kind === "dir") { S.dirs.forEach(function (x) { S.offDir[x.path] = !on; }); }
     if (kind === "type") { S.types.forEach(function (x) { S.offType[x.name] = !on; }); }
+    if (kind === "status") { S.statuses.forEach(function (x) { S.offStatus[x.name] = !on; }); }
     if (S.sel && !visible(S.sel)) { S.sel = null; }
     renderRail(); render(); renderInspector();
   }
@@ -6056,11 +6069,6 @@ lit-html/directives/if-defined.js:
   $("dirBox").addEventListener("click", railClick);
   $("typeBox").addEventListener("click", railClick);
   $("statusBox").addEventListener("click", railClick);
-  Array.prototype.forEach.call(document.querySelectorAll("[data-all]"), function (b) {
-    b.addEventListener("click", function () {
-      setAll(b.getAttribute("data-all"), b.getAttribute("data-v") === "1");
-    });
-  });
 
   var qt = null;
   $("q").addEventListener("input", function (ev) {
