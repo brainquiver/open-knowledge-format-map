@@ -10,6 +10,9 @@ generated:
 supervised:
   by: human:ciprian-florin_ifrim
   at: 2026-09-29T16:55:00Z
+edited:
+  by: claude-code/opus-5.5
+  at: 2026-09-30T19:17:09Z
 ---
 
 # OKF Map
@@ -22,12 +25,18 @@ By default the page reads the frontmatter alone. The Body links switch reads eac
 | --- | --- |
 | `okf-map.html` | the map, with the Carbon Design System inside it |
 | `icons/` | the favicon and the vector marks |
+| `tests/unit/` | the unit tests of the page |
+| `.github/` | the tests workflow and the Dependabot settings |
 
 **The frontmatter carries the map, and the body links are a second layer that a reader can add.**
 
 ## 1. Build and Run
 
     open okf-map.html                                # or open the file in any browser
+    npm ci                                           # the test runner, from package-lock.json
+    npm test                                         # the unit tests
+
+The tests need Node.js 22.12 or later.
 
 ### 1.1 Specification Buttons
 
@@ -52,12 +61,33 @@ Each path is relative to the folder that holds `okf-map.json`.
 | grey button | the document is absent, and the tooltip gives the reason |
 | reload | each chosen file clears, and `okf-map.json` applies again |
 
+### 1.2 Tests
+
+The 43 unit tests run without a browser in Node with Vitest:
+
+| Test file | What it checks |
+| --- | --- |
+| `yaml.test.js` | the YAML frontmatter parser: scalars, flow and block collections, multi-line strings, comments and Windows line endings |
+| `paths.test.js` | how a link path resolves to a document, and which folders count as archived or skipped |
+| `links.test.js` | which frontmatter keys become lines, and which markdown links in the body count |
+| `trust.test.js` | who wrote and who verified a document, its trust tier, and when it goes stale |
+| `routing.test.js` | how the lines between tiles are routed around other tiles |
+| `page.test.js` | that the page loads nothing from other files, apart from the Plex fonts |
+
+The tool does not have any dependencies. `tests/unit/page.js` cuts the script at its section banners, such as `/* ---- paths */`, and runs the exact code of the page.
+
+GitHub Actions runs `npm test` on Node.js 22 and 24 for every pull request and every push to `main`. Pull requests from Dependabot run on GitHub's own runners. Pushes and PRs to main use Blacksmith. Once a month, Dependabot proposes updates to Vitest and to the pinned actions, to be merged manually.
+
 ## 2. Directory Tree
 
-    icons/     the favicon and the vector marks
+    icons/              the favicon and the vector marks
+    tests/unit/         the unit tests, and the loader of the page sections
+    .github/            the tests workflow and the Dependabot settings
 
 ## 3. Rules
 
 **Keep `okf-map.json` at the root of the bundle.** The page reads only the chosen folder, and the copy nearest the root applies when the folder holds more than one.
 
 **Keep the page one file.** A page that the browser opens from the disk cannot fetch a library when it runs.
+
+**Keep the banner comment of each section in the app script.** The unit tests load the logic of the page by its section banners, so a renamed or removed banner fails the tests that load it.
