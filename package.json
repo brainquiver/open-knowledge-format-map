@@ -1,0 +1,16 @@
+{
+  "name": "okf-map",
+  "private": true,
+  "description": "The unit tests of okf-map.html. The page itself needs no build and no package.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "5.0.3"
+  }
+}

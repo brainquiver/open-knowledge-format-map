@@ -7,3 +7,6 @@
 # are about 2 MB together, and a git history keeps every version of a binary
 # for ever, so they stay out.
 icons/reference/
+
+# The test runner, which npm ci installs from package-lock.json
+node_modules/
