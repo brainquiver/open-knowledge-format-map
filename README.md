@@ -12,7 +12,7 @@ supervised:
   at: 2026-09-29T16:55:00Z
 edited:
   by: claude-code/opus-5.5
-  at: 2026-09-30T21:46:31Z
+  at: 2026-10-01T16:15:45Z
 ---
 
 # OKF Map
@@ -27,16 +27,19 @@ edited:
 
 OKF Map is one HTML page that draws a folder of markdown documents as a map of their Open Knowledge Format (OKF) frontmatter. Each document is a tile, and each relation key is a line. The page runs from the disk with the Carbon Design System inside it, and every file stays in the browser.
 
-By default the page reads the frontmatter alone. The Body links switch reads each file in full, and it draws each markdown link in the prose as a dashed line. The map covers the chosen folder, so a path outside it shows as a missing target. The export control saves the map as a PNG image.
+By default the page reads the frontmatter alone. The Body links switch reads each file in full, and it draws each markdown link in the prose as a dashed line. The map covers the chosen folder, so a path outside it shows as a missing target. The export control saves the map as a PNG image. The frontmatter carries the map, and the body links are a second layer that a reader can add.
 
 | File | Description |
 | --- | --- |
 | `okf-map.html` | the map, with the Carbon Design System inside it |
 | `icons/` | the favicon and the vector marks |
 | `tests/unit/` | the unit tests of the page |
+| `docs/images/` | the wide screenshot in this readme, and a square one |
 | `.github/` | the tests workflow and the Dependabot settings |
 
-**The frontmatter carries the map, and the body links are a second layer that a reader can add.**
+<br>
+
+![OKF Map with the 25 documents of a made-up company, Real LTD, in six folders and coloured by type, with the filters on the left and the details on the right](docs/images/okf-map-real-ltd-wide.png)
 
 ## 1. Build and Run
 
@@ -89,6 +92,7 @@ GitHub Actions runs `npm test` on Node.js 22 and 24 for every pull request and e
 ## 2. Directory Tree
 
     icons/              the favicon and the vector marks
+    docs/images/        the wide screenshot in this readme, and a square one
     tests/unit/         the unit tests, and the loader of the page sections
     .github/            the tests workflow and the Dependabot settings
 
