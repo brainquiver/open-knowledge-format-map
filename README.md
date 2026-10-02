@@ -18,7 +18,7 @@ edited:
 # OKF Map
 
 [![Tests](https://img.shields.io/github/actions/workflow/status/brainquiver/open-knowledge-format-map/tests.yml?branch=main&event=push&style=for-the-badge&logo=githubactions&logoColor=white&label=tests)](https://github.com/brainquiver/open-knowledge-format-map/actions/workflows/tests.yml)
-[![Licence](https://img.shields.io/github/license/brainquiver/open-knowledge-format-map?style=for-the-badge&color=blue&label=licence)](LICENSE)
+[![License](https://img.shields.io/github/license/brainquiver/open-knowledge-format-map?style=for-the-badge&color=blue&label=licence)](LICENSE)
 [![Node](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fbrainquiver%2Fopen-knowledge-format-map%2Fmain%2Fpackage.json&query=%24.engines.node&label=node&logo=nodedotjs&logoColor=white&color=339933&style=for-the-badge)](package.json)
 
 ![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white)
@@ -39,7 +39,7 @@ By default the page reads the frontmatter alone. The Body links switch reads eac
 
 <br>
 
-![OKF Map with the 25 documents of a made-up company, Real LTD, in six folders and coloured by type, with the filters on the left and the details on the right](docs/images/okf-map-real-ltd-wide.png)
+![OKF Map with the 25 documents of a made-up company, Real LTD, in six folders and colored by type, with the filters on the left and the details on the right](docs/images/okf-map-real-ltd-wide.png)
 
 ## 1. Build and Run
 
