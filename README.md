@@ -1,7 +1,7 @@
 ---
 type: Repository Guide
 title: OKF Map
-description: An offline map of the Open Knowledge Format frontmatter and relations in a folder of markdown documents.
+description: Offline map view of the Open Knowledge Format frontmatter and relations in MD documents present in a given directory.
 status: stable
 tags: [docs, okf, browser]
 generated:
@@ -12,7 +12,7 @@ supervised:
   at: 2026-09-29T16:55:00Z
 edited:
   by: claude-code/opus-5.5
-  at: 2026-10-01T16:15:45Z
+  at: 2026-10-02T17:54:03Z
 ---
 
 # OKF Map
