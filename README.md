@@ -61,15 +61,15 @@ The tests need Node.js 22.12 or later.
 | Key | Button | Document |
 | --- | --- | --- |
 | `okf-google-spec` | OKF | the OKF specification that Google publishes |
-| `okf-house-profile` | PROFILE | the house profile, which extends that specification for one organisation |
+| `okf-house-profile` | PROFILE | the house profile, which extends that specification for one organization |
 
 Each path is relative to the folder that holds `okf-map.json`.
 
 | Event | Result |
 | --- | --- |
-| left click | the document opens, or a file picker opens when the button is grey |
+| left click | the document opens, or a file picker opens when the button is gray |
 | right click | the file picker opens, so a different document can be chosen |
-| grey button | the document is absent, and the tooltip gives the reason |
+| gray button | the document is absent, and the tooltip gives the reason |
 | reload | each chosen file clears, and `okf-map.json` applies again |
 
 ### 1.2 Tests
