@@ -791,7 +791,7 @@
   }
 
   /* A document is a Carbon tile: square corners, a 1px subtle border and a
-     3px inline-start rule that carries the colour the map is keyed on. */
+     3px inline-start rule that carries the color the map is keyed on. */
   .node {
     position: absolute;
     inline-size: 196px; block-size: 56px;
@@ -1016,8 +1016,8 @@
   .insp-tab:focus-visible { outline: 2px solid var(--cds-focus); outline-offset: -2px; }
 
   /* The bar the operating system draws is a different shape and a different
-     grey from everything else on the page. This one is a plain rectangle
-     with square ends, in the design's own greys. It goes quiet ten seconds
+     gray from everything else on the page. This one is a plain rectangle
+     with square ends, in the design's own grays. It goes quiet ten seconds
      after the last scroll: only the thumb goes, and the space it sits in
      stays reserved, so nothing on the page moves as it comes and goes. The
      rail and the resource row keep their own hidden bars.
@@ -1087,7 +1087,7 @@
     font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace;
   }
   /* The trust and lifecycle badges. Carbon's tag, at the 18px height, with
-     the pair of colours each state carries. */
+     the pair of colors each state carries. */
   .badges { display: flex; flex-wrap: wrap; gap: 4px; }
   .badge {
     display: inline-flex; align-items: center;
@@ -1223,7 +1223,7 @@
   }
   .vw-rule { block-size: 1px; background: var(--cds-border-subtle-01); margin: 24px 32px 0; }
 
-  /* The frontmatter, shown as it is written, coloured like a code snippet */
+  /* The frontmatter, shown as it is written, colored like a code snippet */
   .yml {
     margin: 0 32px; padding: 16px;
     background: var(--cds-layer-01);
@@ -1409,7 +1409,7 @@
               <cds-select-item value="tree">By link, left to right</cds-select-item>
               <cds-select-item value="force">Force</cds-select-item>
             </cds-select>
-            <cds-select id="selColour" label-text="Colour by" size="sm">
+            <cds-select id="selColor" label-text="Color by" size="sm">
               <cds-select-item value="type" selected>Type</cds-select-item>
               <cds-select-item value="folder">Folder</cds-select-item>
               <cds-select-item value="status">Status</cds-select-item>
@@ -2770,7 +2770,7 @@ lit-html/directives/if-defined.js:
   }
 
   /* ---------------------------------------------------------------- paths */
-  function normalise(p) {
+  function normalize(p) {
     var out = [];
     p.split("/").forEach(function (seg) {
       if (seg === "" || seg === ".") { return; }
@@ -2805,7 +2805,7 @@ lit-html/directives/if-defined.js:
     if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(h)) { return null; }
     if (/\s/.test(h)) { return null; }
     var p = h.charAt(0) === "/" ? h.slice(1) : (fromDir ? fromDir + "/" + h : h);
-    p = normalise(p);
+    p = normalize(p);
     if (!p) { return null; }
     var last = baseOf(p);
     if (last.indexOf(".") >= 0 && !/\.md$/i.test(last)) { return null; }
@@ -2817,8 +2817,8 @@ lit-html/directives/if-defined.js:
   var CAT = ["#6929c4", "#1192e8", "#005d5d", "#9f1853", "#fa4d56", "#570408",
              "#198038", "#002d9c", "#ee538b", "#b28600", "#009d9a", "#012749",
              "#8a3800", "#a56eff"];
-  var STATUS_COLOUR = { stable: "#198038", draft: "#b28600", deprecated: "#a2191f", none: "#8d8d8d" };
-  var ACTOR_COLOUR = {
+  var STATUS_COLOR = { stable: "#198038", draft: "#b28600", deprecated: "#a2191f", none: "#8d8d8d" };
+  var ACTOR_COLOR = {
     human: "#0f62fe", agent: "#a56eff", process: "#b28600",
     company: "#009d9a", none: "#8d8d8d"
   };
@@ -2920,7 +2920,7 @@ lit-html/directives/if-defined.js:
     linked: {},          /* the id of every document that a link touches */
     offDir: {}, offType: {}, offStatus: {},
     open: {},            /* which folder rows are expanded */
-    colour: "type",
+    color: "type",
     layout: "folder",
     query: "",
     sel: null,
@@ -3087,7 +3087,7 @@ lit-html/directives/if-defined.js:
      out of it. A line is drawn the way the work flowed, so for these the
      arrow runs from the named document into the one that declares the key:
      a source feeds the document that cites it, and a record contains the
-     instalment that is part of it. The rest read the way they are written.
+     installment that is part of it. The rest read the way they are written.
 
      children is the mirror of part_of, and superseded_by the mirror of
      supersedes, so each pair points the same way whichever end declares it. */
@@ -3514,11 +3514,11 @@ lit-html/directives/if-defined.js:
     });
   }
 
-  function colourOf(d) {
+  function colorOf(d) {
     if (d.ghost) { return "#da1e28"; }
-    if (S.colour === "status") { return STATUS_COLOUR[d.status || "none"] || STATUS_COLOUR.none; }
-    if (S.colour === "author") { return ACTOR_COLOUR[d.actor] || ACTOR_COLOUR.none; }
-    if (S.colour === "folder") { return hashPick(d.dir.split("/")[0] || "(root)", CAT); }
+    if (S.color === "status") { return STATUS_COLOR[d.status || "none"] || STATUS_COLOR.none; }
+    if (S.color === "author") { return ACTOR_COLOR[d.actor] || ACTOR_COLOR.none; }
+    if (S.color === "folder") { return hashPick(d.dir.split("/")[0] || "(root)", CAT); }
     return d.type ? hashPick(d.type, CAT) : "#8d8d8d";
   }
 
@@ -3663,7 +3663,7 @@ lit-html/directives/if-defined.js:
     shiftToOrigin(ns);
   }
 
-  /* Fruchterman and Reingold, with one extra pull toward the centre of the
+  /* Fruchterman and Reingold, with one extra pull toward the center of the
      folder a document sits in, so a folder reads as a cluster. */
   function forceLayout() {
     var ns = allNodes(), n = ns.length;
@@ -3888,7 +3888,7 @@ lit-html/directives/if-defined.js:
 
   /* --------------------------------------------------------------- render */
 
-  function neighbours(d) {
+  function neighbors(d) {
     var set = {};
     if (!d) { return set; }
     set[d.id] = 1;
@@ -3905,7 +3905,7 @@ lit-html/directives/if-defined.js:
     nodeEls = {}; wireEls = [];
     var frag = document.createDocumentFragment();
     var sel = S.sel;
-    var near = (S.show.focus && sel) ? neighbours(sel) : null;
+    var near = (S.show.focus && sel) ? neighbors(sel) : null;
 
     allNodes().forEach(function (d) {
       if (!visible(d)) { return; }
@@ -3917,7 +3917,7 @@ lit-html/directives/if-defined.js:
         el.innerHTML = icon("warn", 14) + '<span class="p">' + esc(d.path) + "</span>";
       } else {
         el.className = "node";
-        el.style.setProperty("--c", colourOf(d));
+        el.style.setProperty("--c", colorOf(d));
         el.setAttribute("data-sel", sel === d ? "1" : "0");
         if (near && near[d.id] && sel !== d) { el.setAttribute("data-nb", "1"); }
         var st = d.status || "none";
@@ -3943,7 +3943,7 @@ lit-html/directives/if-defined.js:
 
   /* A wire leaves a tile square to the side it starts on and arrives square
      to the side it lands on, which is why it is a curve and not a line
-     between two centres. A straight line crosses the tile's own text and
+     between two centers. A straight line crosses the tile's own text and
      arrives at a corner; this one leaves from the middle of an edge and the
      arrow meets the target head on. */
 
@@ -4078,7 +4078,7 @@ lit-html/directives/if-defined.js:
       return b.x2 > win.x1 && b.x1 < win.x2 && b.y2 > win.y1 && b.y1 < win.y2;
     }
     /* Only the folder layout keeps its blocks apart. In the force layout a
-       folder is a loose cluster whose box overlaps its neighbours, so a
+       folder is a loose cluster whose box overlaps its neighbors, so a
        route that had to miss every box would have nowhere to go: there,
        only the cards are obstacles. */
     if (S.show.outline && S.layout === "folder") {
@@ -4445,7 +4445,7 @@ lit-html/directives/if-defined.js:
     layoutWorld();
   }
 
-  function centreOn(d) {
+  function centerOn(d) {
     var r = canvasEl.getBoundingClientRect();
     var k = Math.max(S.view.k, 0.7);
     S.view.k = k;
@@ -4467,7 +4467,7 @@ lit-html/directives/if-defined.js:
            (opts.caret === undefined ? "" :
              '<span class="car' + (opts.caret ? "" : " hidden") + '" data-car="' + esc(opts.k) + '">' +
              icon(opts.open ? "caretD" : "caretR", 16) + "</span>") +
-           (opts.colour ? '<span class="sw" style="background:' + opts.colour + '"></span>' : "") +
+           (opts.color ? '<span class="sw" style="background:' + opts.color + '"></span>' : "") +
            '<span class="nm">' + esc(opts.name) + "</span>" +
            (opts.n === undefined ? "" : '<span class="ct">' + opts.n + "</span>") +
            "</button>";
@@ -4562,13 +4562,13 @@ lit-html/directives/if-defined.js:
     $("typeBox").innerHTML = allRow("type", "All types", S.types, S.offType) +
       S.types.map(function (x) {
         return row({ on: S.offType[x.name] ? 0 : 1, k: x.name, act: "type", name: x.name, n: x.n,
-                     indent: 1, colour: x.name === "(no type)" ? "#8d8d8d" : hashPick(x.name, CAT) });
+                     indent: 1, color: x.name === "(no type)" ? "#8d8d8d" : hashPick(x.name, CAT) });
       }).join("");
 
     $("statusBox").innerHTML = allRow("status", "All statuses", S.statuses, S.offStatus) +
       S.statuses.map(function (x) {
         return row({ on: S.offStatus[x.name] ? 0 : 1, k: x.name, act: "status", name: x.name, n: x.n,
-                     indent: 1, colour: STATUS_COLOUR[x.name] });
+                     indent: 1, color: STATUS_COLOR[x.name] });
       }).join("");
 
     var shown = S.docs.filter(visible).length;
@@ -4660,7 +4660,7 @@ lit-html/directives/if-defined.js:
   }
 
   function linkRow(d, key, dir) {
-    return '<button class="lnk" data-go="' + esc(d.id) + '" style="--c:' + colourOf(d) + '">' +
+    return '<button class="lnk" data-go="' + esc(d.id) + '" style="--c:' + colorOf(d) + '">' +
            icon(dir === "out" ? "right" : "link", 14) +
            '<span class="nm">' + esc(d.title || d.base) + "</span>" +
            (key ? '<span class="tag">' + esc(key) + "</span>" : "") + "</button>";
@@ -4684,7 +4684,7 @@ lit-html/directives/if-defined.js:
                (d.stale.stale ? "Stale since " : "Review by ") + esc(d.stale.on) + "</span>");
     }
     if (d.actor !== "none") {
-      out.push('<span class="badge" data-b="actor" style="--c:' + ACTOR_COLOUR[d.actor] + '">' +
+      out.push('<span class="badge" data-b="actor" style="--c:' + ACTOR_COLOR[d.actor] + '">' +
                esc(d.by) + "</span>");
     }
     return out.join("");
@@ -4702,7 +4702,7 @@ lit-html/directives/if-defined.js:
     var p = resolveHref(r, d.dir);
     var t = p ? findDoc(p) : null;
     if (t && t !== d) {
-      return '<button class="lnk" data-go="' + esc(t.id) + '" style="--c:' + colourOf(t) + '">' +
+      return '<button class="lnk" data-go="' + esc(t.id) + '" style="--c:' + colorOf(t) + '">' +
              icon("right", 14) + '<span class="nm">' + esc(t.title || t.base) + "</span>" +
              '<span class="tag">resource</span></button>';
     }
@@ -4754,7 +4754,7 @@ lit-html/directives/if-defined.js:
 
     var fm = d.fm || {};
     var out = [];
-    out.push('<div class="insp-head" style="--c:' + colourOf(d) + '"><b>' + esc(d.title) +
+    out.push('<div class="insp-head" style="--c:' + colorOf(d) + '"><b>' + esc(d.title) +
              '</b><span class="path">' + esc(d.path) + "</span></div>");
 
     var head = [];
@@ -4833,7 +4833,7 @@ lit-html/directives/if-defined.js:
       if (d.stale && d.stale.stale) { stale++; }
     });
     var who = S.actors.slice().sort(function (a, b) { return b.n - a.n; }).map(function (a) {
-      return '<div class="bar2"><span class="sw" style="background:' + ACTOR_COLOUR[a.name] +
+      return '<div class="bar2"><span class="sw" style="background:' + ACTOR_COLOR[a.name] +
              '"></span><span class="nm">' + esc(ACTOR_LABEL[a.name]) +
              '</span><span class="ct">' + a.n + "</span></div>";
     }).join("");
@@ -4902,7 +4902,7 @@ lit-html/directives/if-defined.js:
         var t = S.byPath[id] || S.ghosts.filter(function (g) { return g.id === id; })[0];
         if (!t) { return; }
         select(t);
-        centreOn(t);
+        centerOn(t);
       });
     });
     var op = $("btnOpen");
@@ -4983,7 +4983,7 @@ lit-html/directives/if-defined.js:
 
   var viewerDoc = null;
 
-  /* ------------------------------------------------------ YAML, coloured */
+  /* ------------------------------------------------------ YAML, colored */
   function ymlToHtml(text) {
     return text.split(/\r?\n/).map(function (line) {
       if (/^\s*---\s*$/.test(line)) { return '<span class="d">' + esc(line) + "</span>"; }
@@ -5003,7 +5003,7 @@ lit-html/directives/if-defined.js:
     if (/^\s*$/.test(s)) { return esc(s); }
     var lead = s.match(/^\s*/)[0], v = s.slice(lead.length);
     if (/^[[{]/.test(v)) {
-      /* Colour the keys inside a flow collection and leave the rest. */
+      /* Color the keys inside a flow collection and leave the rest. */
       return esc(lead) + esc(v)
         .replace(/([A-Za-z0-9_-]+)(:)/g, '<span class="k">$1</span><span class="p">:</span>');
     }
@@ -5267,7 +5267,7 @@ lit-html/directives/if-defined.js:
           ev.preventDefault();
           var t = S.byPath[a.getAttribute("data-doc")];
           if (!t) { return; }
-          centreOn(t);
+          centerOn(t);
           select(t);        /* the viewer follows the selection */
         });
       });
@@ -5285,7 +5285,7 @@ lit-html/directives/if-defined.js:
      board rather than laid out again.
 
      Two states are deliberately left out. A selection is a state of the
-     tool and not of the map, so a blue wire and a dimmed neighbour would
+     tool and not of the map, so a blue wire and a dimmed neighbor would
      only confuse a saved picture. Everything else is drawn as it stands.
 
      The tiles are HTML and the wires are SVG, so the browser cannot turn
@@ -5414,7 +5414,7 @@ lit-html/directives/if-defined.js:
     ctx.lineWidth = 1;
     ctx.strokeStyle = C.hair;
     ctx.strokeRect(x + 0.5, y + 0.5, NW - 1, NH - 1);
-    ctx.fillStyle = colourOf(d);
+    ctx.fillStyle = colorOf(d);
     ctx.fillRect(x + 1, y + 1, 3, NH - 2);
 
     var left = x + 12, room = NW - 25, top = y + 9;
@@ -5474,8 +5474,8 @@ lit-html/directives/if-defined.js:
 
   /* The arrow head the marker draws: six and three quarters long, six
      across, its tip on the end of the wire and its base along the last
-     direction the wire travelled in. */
-  function drawHead(ctx, el, colour) {
+     direction the wire traveled in. */
+  function drawHead(ctx, el, color) {
     var L = el.getTotalLength();
     if (!(L > 2)) { return; }
     var p = el.getPointAtLength(L), q = el.getPointAtLength(L - 2);
@@ -5484,7 +5484,7 @@ lit-html/directives/if-defined.js:
     if (!m) { return; }
     dx /= m; dy /= m;
     var bx = p.x - dx * 6.75, by = p.y - dy * 6.75;
-    ctx.fillStyle = colour;
+    ctx.fillStyle = color;
     ctx.beginPath();
     ctx.moveTo(p.x, p.y);
     ctx.lineTo(bx - dy * 3, by + dx * 3);
@@ -5523,16 +5523,16 @@ lit-html/directives/if-defined.js:
     });
 
     plan.wires.forEach(function (w) {
-      var colour = w.kind === "broken" ? C.bad
+      var color = w.kind === "broken" ? C.bad
                  : (w.kind === "tree" ? C.hair : C.strong);
-      ctx.strokeStyle = colour;
+      ctx.strokeStyle = color;
       ctx.lineWidth = 1.25;
       ctx.setLineDash(w.kind === "body" ? [6, 4]
                     : (w.kind === "tree" ? [2, 4]
                     : (w.kind === "broken" ? [3, 3] : [])));
       ctx.stroke(new Path2D(w.el.getAttribute("d")));
       ctx.setLineDash([]);
-      drawHead(ctx, w.el, colour);
+      drawHead(ctx, w.el, color);
     });
 
     return cv;
@@ -5732,12 +5732,12 @@ lit-html/directives/if-defined.js:
      So each document comes from a file that the reader gives the page:
 
        okf-map.json     a file in the chosen folder that names both documents
-       the picker       a click on a grey button asks for its document
+       the picker       a click on a gray button asks for its document
 
      A right click on either button asks again, so the reader can change the
      document. A document from the picker takes the place of the one that the
      config names. The page stores nothing, so a reload starts again. A button
-     without a document stays in its place and turns grey, so the bar keeps
+     without a document stays in its place and turns gray, so the bar keeps
      its shape, and its title says what is missing. */
 
   var CONFIG = "okf-map.json";
@@ -6095,7 +6095,7 @@ lit-html/directives/if-defined.js:
     el.addEventListener("cds-select-selected", grab);
   }
   onSelect("selLayout", "layout", function () { layout(); render(); fit(); });
-  onSelect("selColour", "colour", function () { renderRail(); render(); renderInspector(); });
+  onSelect("selColor", "color", function () { renderRail(); render(); renderInspector(); });
   $("btnRelayout").addEventListener("click", function () { layout(); render(); fit(); });
 
   window.addEventListener("keydown", function (ev) {

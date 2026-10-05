@@ -51,7 +51,7 @@ describe('trust', () => {
     ).toBe('2026-09-01T00:00:00Z');
   });
 
-  it('gives the same colour to the same name on every run', () => {
+  it('gives the same color to the same name on every run', () => {
     const list = ['red', 'green', 'blue'];
     expect(hashPick('docs/specs', list)).toBe(hashPick('docs/specs', list));
     expect(list).toContain(hashPick('docs/specs', list));

@@ -1,15 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import { load } from './page.js';
 
-const { normalise, dirOf, baseOf, isArchived, resolveHref, skipPath } = load(
+const { normalize, dirOf, baseOf, isArchived, resolveHref, skipPath } = load(
   ['utils', 'paths', 'read'],
-  ['normalise', 'dirOf', 'baseOf', 'isArchived', 'resolveHref', 'skipPath']
+  ['normalize', 'dirOf', 'baseOf', 'isArchived', 'resolveHref', 'skipPath']
 );
 
 describe('paths', () => {
-  it('normalises dot segments and empty segments', () => {
-    expect(normalise('docs/./specs//a.md')).toBe('docs/specs/a.md');
-    expect(normalise('docs/work/../specs/a.md')).toBe('docs/specs/a.md');
+  it('normalizes dot segments and empty segments', () => {
+    expect(normalize('docs/./specs//a.md')).toBe('docs/specs/a.md');
+    expect(normalize('docs/work/../specs/a.md')).toBe('docs/specs/a.md');
   });
 
   it('splits a path into its folder and its file name', () => {
