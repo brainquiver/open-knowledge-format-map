@@ -4850,15 +4850,14 @@ lit-html/directives/if-defined.js:
         srow("Concept documents", tot) +
         srow("Skipped, no frontmatter", S.skipped) +
         srow("No type", noType) +
-      '</div><p class="pnote">A markdown file with no frontmatter is not a concept ' +
-      "document under the format, so the map does not load it. The format needs a " +
-      "type on every document that it does load." +
+      '</div><p class="pnote">The map reads a markdown file as a concept document only ' +
+      "when it opens with YAML frontmatter, as that block is where the format records what " +
+      "a document is, and the format in turn expects every such block to name a type." +
       /* Say so when a prefix was taken off every path, because an inference
          that a reader cannot see is an inference a reader cannot check. */
-      (S.offset ? " The paths here are written from a folder above this one, so " +
-        "<b>" + esc(S.offset) + "/</b> comes off the front of each of them: that " +
-        "resolves " + S.offsetHits + " of the " + S.offsetTried +
-        " that do not match on their own." : "") +
+      (S.offset ? " The links in these documents are written from a directory above this one, " +
+        "and whenever a path does not match as written, the map strips <b>" + esc(S.offset) +
+        "/</b> from its front, recovering " + offsetCount() + "." : "") +
       "</p></div>" +
       '<div class="sect"><h4>Trust</h4><div class="slist">' +
         srow("Human reviewed", tiers["human-reviewed"] || 0) +
@@ -4880,14 +4879,30 @@ lit-html/directives/if-defined.js:
   /* What the trust counts mean, for the bundle that is open. The note says
      which of the two fields the bundle uses, so it never claims something
      about a bundle it has not read. */
+  /* How many of the unmatched paths the prefix resolved, in words that read
+     correctly for one path, for every path and for some of them. */
+  function offsetCount() {
+    var n = S.offsetHits, of = S.offsetTried;
+    if (n === of) { return n === 1 ? "the only one" : "all " + n; }
+    return n + " of the " + of;
+  }
+
   function trustNote(verified, stale) {
-    var s = "A tier comes from the verified field, and a review date from stale_after.";
+    var s = "A document's trust tier is derived from its verified field and its review date " +
+            "from stale_after";
     if (!verified && !stale) {
-      return s + " No document here carries either field, so they all read unverified.";
+      return s + ", and as neither field appears anywhere in this bundle, every document " +
+             "here reads as unverified.";
     }
-    if (!verified) { return s + " No document here carries a verified field."; }
-    if (!stale) { return s + " No document here carries a stale_after date."; }
-    return s;
+    if (!verified) {
+      return s + ", and as no document in this bundle carries a verified field, every one " +
+             "of them reads as unverified.";
+    }
+    if (!stale) {
+      return s + ", and as no document in this bundle carries a stale_after date, none of " +
+             "them can fall past its review date.";
+    }
+    return s + ".";
   }
 
   function srow(k, v) {
