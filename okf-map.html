@@ -1257,6 +1257,79 @@
   .yml .p { color: var(--cds-text-secondary); }
   .yml .d { color: var(--cds-text-placeholder); }
 
+  /* The frontmatter as a table: one row for each key, in the same structured
+     list the details panel uses, so a field reads the same in both places. A
+     map nests as rows under a thin rule, a list of values becomes tags, and
+     an author, a status and a time each take the form the panel gives them. */
+  .vw-sec-row { display: flex; align-items: center; justify-content: space-between; }
+  .fmv-switch { display: inline-flex; text-transform: none; }
+  .fmv-switch button {
+    block-size: 24px; padding-inline: 12px; cursor: pointer;
+    border: 1px solid var(--cds-border-strong-01); background: transparent;
+    color: var(--cds-text-secondary); font-family: inherit; font-size: 12px; letter-spacing: 0.32px;
+  }
+  .fmv-switch button + button { border-inline-start: 0; }
+  .fmv-switch button[aria-selected="true"] {
+    background: var(--cds-layer-selected-inverse); border-color: var(--cds-layer-selected-inverse);
+    color: var(--cds-text-inverse);
+  }
+  .fmv-switch button:focus-visible { outline: 2px solid var(--cds-focus); outline-offset: -2px; }
+  .fmv {
+    margin: 0 32px;
+    background: var(--cds-layer-01); border: 1px solid var(--cds-border-subtle-01);
+  }
+  .fmv[hidden], .yml[hidden] { display: none; }
+  .fmv-row {
+    display: grid; grid-template-columns: 140px minmax(0, 1fr);
+    border-block-end: 1px solid var(--cds-border-subtle-01);
+  }
+  .fmv-row:last-child { border-block-end: 0; }
+  .fmv-k {
+    padding: 10px 16px; color: var(--cds-text-secondary);
+    font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace; font-size: 12px; line-height: 20px;
+  }
+  .fmv-v {
+    padding: 10px 16px; min-inline-size: 0;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+    font-size: 14px; line-height: 20px; color: var(--cds-text-primary); overflow-wrap: anywhere;
+  }
+  .fmv-nest { flex-direction: column; align-items: stretch; gap: 8px; padding-block: 8px; }
+  /* Every nested block shares one key column, wide enough for the longest key
+     the format nests, which is resource. The values after by and at and the
+     values in a source then start on the same line down the whole table. */
+  .fmv-sub {
+    margin: 0; background: transparent; border: 0;
+    border-inline-start: 2px solid var(--cds-border-subtle-01);
+    display: grid; grid-template-columns: 96px minmax(0, 1fr);
+  }
+  .fmv-sub > .fmv-row { display: contents; }
+  .fmv-sub .fmv-k { padding: 3px 12px; }
+  .fmv-sub .fmv-v { padding: 3px 12px 3px 4px; }
+  .fmv-mono { font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace; }
+  /* One size for everything in the table: the keys, the prose, the paths,
+     the times and every tag and badge. Plex Sans and Plex Mono share one
+     x-height, so at the same size a word and a path sit level with each other. */
+  .fmv .fmv-k, .fmv .fmv-v, .fmv .tag, .fmv .badge, .fmv .fmv-chip {
+    font-size: 13px; letter-spacing: 0.16px;
+  }
+  /* One face for each column. The keys are Mono and every value is Sans, a
+     path, a time and an author included. At one size Mono runs about a fifth
+     wider than Sans, and a wide word beside a narrow one reads as a larger
+     word, so a column that mixes the two looks uneven. */
+  .fmv .fmv-v, .fmv .fmv-v .fmv-mono, .fmv .fmv-v .badge, .fmv .fmv-v .tag {
+    font-family: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  }
+  .fmv .tag, .fmv .badge, .fmv .fmv-chip { block-size: 20px; }
+  .fmv-nil { color: var(--cds-text-placeholder); font-style: italic; }
+  .fmv-a { color: var(--cds-link-primary); text-decoration: none; }
+  .fmv-a:hover { text-decoration: underline; }
+  .fmv-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    block-size: 18px; padding-inline: 8px; font-size: 12px; letter-spacing: 0.32px;
+    box-shadow: inset 0 0 0 1px var(--cds-border-subtle-01); color: var(--cds-text-secondary);
+  }
+  .fmv-chip::before { content: ""; flex: none; inline-size: 8px; block-size: 8px; background: var(--c); }
+
   /* ------------------------------------------------ rendered markdown */
   .md {
     font-size: var(--cds-body-01-font-size);
@@ -5016,6 +5089,75 @@ lit-html/directives/if-defined.js:
   var viewerDoc = null;
 
   /* ------------------------------------------------------ YAML, colored */
+  /* The view the reader opens on first, held for the session. */
+  var FMVIEW = "table";
+
+  function isScalar(v) { return v === null || typeof v !== "object"; }
+
+  /* One row for each key, in the order the file gives them. */
+  function fmView(o) {
+    if (!o || typeof o !== "object" || !keys(o).length) {
+      return '<div class="fmv-row"><div class="fmv-k"></div><div class="fmv-v">' +
+             '<span class="fmv-nil">no fields</span></div></div>';
+    }
+    /* Who comes first, then the rest in the order the file gives them, so a
+       source opens on its author the way generated opens on by. */
+    var order = keys(o).filter(function (k) { return k === "by" || k === "author"; })
+      .concat(keys(o).filter(function (k) { return k !== "by" && k !== "author"; }));
+    return order.map(function (k) {
+      var v = o[k];
+      var nest = v !== null && typeof v === "object" && !(Array.isArray(v) && v.every(isScalar));
+      return '<div class="fmv-row"><div class="fmv-k">' + esc(k) + '</div><div class="fmv-v' +
+             (nest ? " fmv-nest" : "") + '">' + fmValue(k, v) + "</div></div>";
+    }).join("");
+  }
+
+  function fmValue(k, v) {
+    if (v === null || v === undefined || v === "") { return '<span class="fmv-nil">empty</span>'; }
+    if (Array.isArray(v)) {
+      if (!v.length) { return '<span class="fmv-nil">empty</span>'; }
+      if (v.every(isScalar)) { return v.map(function (x) { return fmTag(k, x); }).join(""); }
+      return v.map(function (x) {
+        return isScalar(x) ? "<div>" + fmScalar(k, x) + "</div>"
+                           : '<div class="fmv fmv-sub">' + fmView(x) + "</div>";
+      }).join("");
+    }
+    if (typeof v === "object") { return '<div class="fmv fmv-sub">' + fmView(v) + "</div>"; }
+    return fmScalar(k, v);
+  }
+
+  /* A value in a list. A topic in tags is a word, and any other value that
+     carries a slash or a dot is a path, which takes the monospace face. */
+  function fmTag(k, x) {
+    var t = String(x);
+    var path = k !== "tags" && /[\/.]/.test(t) && t.indexOf(" ") < 0;
+    return '<span class="tag' + (path ? " fmv-mono" : "") + '">' + esc(t) + "</span>";
+  }
+
+  function fmScalar(k, v) {
+    if (typeof v === "number" || typeof v === "boolean") {
+      return '<span class="fmv-mono">' + esc(String(v)) + "</span>";
+    }
+    var t = String(v);
+    if ((k === "by" || k === "author") && actorKind(t) !== "none") {
+      return '<span class="badge" data-b="actor" style="--c:' + ACTOR_COLOR[actorKind(t)] + '">' +
+             esc(t) + "</span>";
+    }
+    if (k === "status" && STATUS_COLOR[t]) {
+      return '<span class="fmv-chip" style="--c:' + STATUS_COLOR[t] + '">' + esc(t) + "</span>";
+    }
+    var at = t.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}(?::\d{2})?)(?:\.\d+)?Z$/);
+    if (at) { return '<span class="fmv-mono">' + at[1] + " " + at[2] + " UTC</span>"; }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(t)) { return '<span class="fmv-mono">' + t + "</span>"; }
+    if (/^https?:\/\//.test(t)) {
+      return '<a class="fmv-a" href="' + esc(t) + '" target="_blank" rel="noopener">' + esc(t) + "</a>";
+    }
+    if (t.indexOf(" ") < 0 && /^\/|\.md$|^[\w.-]+\/[\w.\/-]+$/.test(t)) {
+      return '<span class="fmv-mono">' + esc(t) + "</span>";
+    }
+    return esc(t);
+  }
+
   function ymlToHtml(text) {
     return text.split(/\r?\n/).map(function (line) {
       if (/^\s*---\s*$/.test(line)) { return '<span class="d">' + esc(line) + "</span>"; }
@@ -5271,13 +5413,28 @@ lit-html/directives/if-defined.js:
           '<button class="vw-close" id="vwClose" aria-label="Close">' + icon("close", 20) + "</button>" +
         "</div>" +
         '<div class="vw-body" id="vwBody">' +
-          '<div class="vw-sec">Frontmatter</div>' +
-          '<pre class="yml">' + ymlToHtml(d.fmText || "") + "</pre>" +
+          '<div class="vw-sec vw-sec-row">Frontmatter<span class="fmv-switch" role="tablist">' +
+            '<button role="tab" data-fmv="table">Table</button>' +
+            '<button role="tab" data-fmv="yaml">YAML</button></span></div>' +
+          '<div class="fmv" id="fmv">' + fmView(parseFrontmatter(d.fmText || "") || {}) + "</div>" +
+          '<pre class="yml" id="fmy">' + ymlToHtml(d.fmText || "") + "</pre>" +
           '<div class="vw-rule"></div>' +
           '<div class="vw-pad"><p class="none" id="vwWait">Reading the document.</p></div>' +
         "</div>" +
       "</div>";
     $("vwClose").addEventListener("click", closeViewer);
+    function showFm(view) {
+      FMVIEW = view;
+      $("fmv").hidden = view !== "table";
+      $("fmy").hidden = view !== "yaml";
+      Array.prototype.forEach.call(host.querySelectorAll("[data-fmv]"), function (b) {
+        b.setAttribute("aria-selected", b.getAttribute("data-fmv") === view ? "true" : "false");
+      });
+    }
+    Array.prototype.forEach.call(host.querySelectorAll("[data-fmv]"), function (b) {
+      b.addEventListener("click", function () { showFm(b.getAttribute("data-fmv")); });
+    });
+    showFm(FMVIEW);
     stir($("vwBody"));
     /* The grip is built with the viewer and thrown away with it, so it takes
        its handler here rather than once at the start. */
