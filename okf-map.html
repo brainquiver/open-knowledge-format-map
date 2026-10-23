@@ -6312,10 +6312,15 @@ lit-html/directives/if-defined.js:
      the change event is the first word we get. So the panel goes up as soon
      as the dialog is asked for, and says what is being waited on. Chrome
      lists twenty thousand files in a few seconds. Firefox takes far longer
-     over the same folder, and used to leave the page looking broken. */
+     over the same folder, and used to leave the page looking broken.
+
+     Only a browser without showDirectoryPicker reaches this wait, and in it
+     a drop is the one way in that the map lists itself, so the panel says so
+     while the person waits. */
   function awaitFolder() {
     if (S.docs.length) { return; }
-    progress("Waiting for the browser to list the folder.", 0,
+    progress("Waiting for the browser to list the folder. " +
+             "A folder dropped on the page opens faster.", 0,
              "a large directory may take longer to read");
   }
 
