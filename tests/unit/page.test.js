@@ -3,7 +3,7 @@ import { html, sectionNames } from './page.js';
 
 describe('okf-map.html', () => {
   it('holds every section that the unit tests load', () => {
-    for (const name of ['utils', 'YAML subset', 'paths', 'palette', 'actors and trust', 'read', 'build', 'body links', 'routing']) {
+    for (const name of ['utils', 'YAML subset', 'paths', 'palette', 'actors and trust', 'read', 'build', 'body links', 'routing', 'walk']) {
       expect(sectionNames).toContain(name);
     }
   });
