@@ -1527,7 +1527,7 @@
 
         <cds-accordion-item title="Help">
           <p class="note">
-            Choose a folder. The map keeps every markdown file that carries
+            Choose a folder, or drop one on the page. The map keeps every markdown file that carries
             YAML frontmatter, and reads that frontmatter alone.
           </p>
           <p class="note">
@@ -1579,7 +1579,7 @@
     <div class="veil" id="veil">
       <div class="box">
         <span class="ic" id="veilIcon"></span>
-        <b id="veilTitle">Choose a folder</b>
+        <b id="veilTitle">Choose a folder, or drop one on the page</b>
         <p id="veilText">
           The map finds every <span class="mono">.md</span> file under the
           folder you choose, keeps the ones with YAML frontmatter, and reads
@@ -2990,6 +2990,7 @@ lit-html/directives/if-defined.js:
   /* ---------------------------------------------------------------- state */
   var S = {
     root: "",
+    run: 0,              /* the number of the folder being opened */
     docs: [],            /* one entry for each markdown file */
     ghosts: [],          /* one entry for each link target that is missing */
     byPath: {},
@@ -3023,10 +3024,35 @@ lit-html/directives/if-defined.js:
 
   /* ----------------------------------------------------------------- read */
 
+  function skipName(seg) {
+    return seg.charAt(0) === "." || seg === "node_modules" || seg === "__pycache__";
+  }
+
   function skipPath(p) {
-    return p.split("/").some(function (seg) {
-      return seg.charAt(0) === "." || seg === "node_modules" || seg === "__pycache__";
+    return p.split("/").some(skipName);
+  }
+
+  /* A folder that holds one of these files says it is a build or a cache, so
+     nothing under it is read. CACHEDIR.TAG is the cache directory tag that
+     cargo, pytest and ruff all write, and pyvenv.cfg marks a Python virtual
+     environment. In a tree of source code these folders hold a large share
+     of the files, and none of their markdown is anybody's knowledge. */
+  var CACHE_MARKS = { "CACHEDIR.TAG": 1, "pyvenv.cfg": 1 };
+
+  /* The folders under which nothing is read, from a flat list of paths. */
+  function cacheDirs(paths) {
+    var out = {};
+    paths.forEach(function (p) {
+      if (CACHE_MARKS[baseOf(p)]) { out[dirOf(p)] = 1; }
     });
+    return out;
+  }
+
+  function underCache(p, dirs) {
+    for (var i = p.indexOf("/"); i >= 0; i = p.indexOf("/", i + 1)) {
+      if (dirs[p.slice(0, i)]) { return true; }
+    }
+    return !!dirs[""];
   }
 
   /* ------------------------------------------------------------- progress */
@@ -3034,7 +3060,8 @@ lit-html/directives/if-defined.js:
      time reading, so reading takes most of the bar, and the stages after it
      take the rest. The panel says which stage is running, because a bar that
      stops moving with no word for it looks like a bar that has stuck. */
-  var PROG = { read: 0.70, links: 0.08, layout: 0.10, routes: 0.12 };
+  var PROG = { list: 0.20, read: 0.50, links: 0.08, layout: 0.10, routes: 0.12 };
+  var READ_END = PROG.list + PROG.read;
 
   function progress(text, frac, count) {
     var pc = Math.round(clamp(frac, 0, 1) * 100);
@@ -3069,29 +3096,82 @@ lit-html/directives/if-defined.js:
     })();
   }
 
+  /* Each folder that is opened gets a number, and a stage of an older one
+     that is still running sees the number change and stops. */
+  function begin(name) {
+    S.run++;
+    S.root = name;
+    return S.run;
+  }
+
+  function noMarkdown() {
+    progress("No markdown file was found in that folder.", 0, "");
+    $("btnPick2").style.display = "";
+  }
+
+  /* The way in for a browser that lists the folder itself. It hands over
+     every file below the folder at once, so the wait for it is the
+     browser's, and all that is left here is to filter what arrives. */
   function load(fileList) {
     var all = Array.prototype.slice.call(fileList);
     if (!all.length) { return; }
-    var first = all[0].webkitRelativePath || all[0].name;
-    S.root = first.split("/")[0];
-    readConfig(all);
+    var run = begin((all[0].webkitRelativePath || all[0].name).split("/")[0]);
 
-    progress("Looking for markdown files.", 0, all.length + " files in the folder");
+    progress("Looking for markdown files.", PROG.list, all.length + " files in the folder");
 
     setTimeout(function () {
-      var picked = all.filter(function (f) {
-        var rel = (f.webkitRelativePath || f.name).split("/").slice(1).join("/");
-        return /\.md$/i.test(rel) && !skipPath(rel);
+      if (run !== S.run) { return; }
+      var files = {}, paths = all.map(function (f) {
+        var rel = f.webkitRelativePath || f.name;
+        rel = rel.slice(rel.indexOf("/") + 1);
+        files[rel] = f;
+        return rel;
       });
-      if (!picked.length) {
-        progress("No markdown file was found in that folder.", 0, "");
-        $("btnPick2").style.display = "";
-        return;
-      }
-      readAll(picked.map(function (f) {
-        return { path: (f.webkitRelativePath || f.name).split("/").slice(1).join("/"), file: f };
-      }));
+      var cached = cacheDirs(paths), picked = [];
+      readConfig(files);
+      paths.forEach(function (rel, k) {
+        if (/\.md$/i.test(rel) && !skipPath(rel) && !underCache(rel, cached)) {
+          picked.push({ path: rel, file: all[k] });
+        }
+      });
+      if (!picked.length) { noMarkdown(); return; }
+      readAll(picked, run);
     }, 16);
+  }
+
+  /* The way in for a browser that hands over the folder and lets the page
+     list it. The input makes a File for every file below the folder before
+     the page hears a word, and over a tree of a million files that took
+     Chrome more than two minutes and several gigabytes. Here the map opens
+     one folder at a time, never opens a folder that is skipped, keeps only
+     the markdown, and the panel counts as it goes. */
+  function walkFrom(root) {
+    var run = begin(root.name), last = 0;
+    progress("Listing the folder.", 0, "");
+    walkFolder(root, function (name) {
+      return /\.md$/i.test(name) || name === CONFIG;
+    }, function (seen) {
+      var now = Date.now();
+      if (now - last < 100) { return; }
+      last = now;
+      progress("Listing the folder.", seen.share * PROG.list,
+               seen.dirs + " folders, " + seen.kept + " markdown files");
+    }, function () {
+      return run === S.run;
+    }).then(function (r) {
+      if (!r) { return; }
+      var files = {}, picked = [];
+      r.found.forEach(function (f) {
+        files[f.path] = {
+          text: function () { return fileOf(f.entry).then(function (x) { return x.text(); }); }
+        };
+        if (/\.md$/i.test(f.path)) { picked.push({ path: f.path, entry: f.entry }); }
+      });
+      readConfig(files);
+      if (!picked.length) { noMarkdown(); return; }
+      picked.sort(function (p, q) { return p.path < q.path ? -1 : 1; });
+      readAll(picked, run);
+    });
   }
 
   /* Only the first 64 KiB of a file is ever fetched, and only the part of
@@ -3099,35 +3179,146 @@ lit-html/directives/if-defined.js:
      dropped here and never reaches the map. */
   var HEAD = 65536;
 
-  function readAll(list) {
-    var i = 0, kept = [], skipped = 0;
-    var every = Math.max(1, Math.round(list.length / 60));
+  /* Reads that are in flight at once. One at a time leaves the disk idle
+     between each request and its answer. */
+  var READS = 32;
+
+  function readAll(list, run) {
+    var next = 0, done = 0, skipped = 0, last = 0, kept = new Array(list.length);
     function show() {
       progress("Reading the frontmatter of each file.",
-               (i / list.length) * PROG.read,
-               i + " of " + list.length + " files");
+               PROG.list + (done / list.length) * PROG.read,
+               done + " of " + list.length + " files");
     }
-    function next() {
-      if (i >= list.length) {
-        S.skipped = skipped;
-        build(kept);
-        return;
-      }
-      var d = list[i];
-      d.file.slice(0, HEAD).text().then(function (head) {
+    function one() {
+      if (run !== S.run || next >= list.length) { return; }
+      var at = next++, d = list[at];
+      (d.file ? Promise.resolve(d.file) : fileOf(d.entry)).then(function (f) {
+        d.file = f;
+        delete d.entry;
+        return f.slice(0, HEAD).text();
+      }).then(function (head) {
         var fm = frontmatterOnly(head);
-        if (fm === null) { skipped++; } else { d.fmText = fm; kept.push(d); }
-        step();
-      }, function () { skipped++; step(); });
-      function step() {
-        i++;
-        /* Give the panel about sixty updates over the whole folder, whatever
-           its size, and yield the thread each time so the bar moves. */
-        if (i % every === 0) { show(); setTimeout(next, 0); } else { next(); }
-      }
+        if (fm === null) { skipped++; } else { d.fmText = fm; kept[at] = d; }
+      }, function () {
+        skipped++;
+      }).then(function () {
+        if (run !== S.run) { return; }
+        done++;
+        var now = Date.now();
+        if (now - last > 50) { last = now; show(); }
+        if (done < list.length) { one(); return; }
+        S.skipped = skipped;
+        /* The order is the order of the list, whichever read came back
+           first, so the same folder always gives the same map. */
+        build(kept.filter(Boolean));
+      });
     }
     show();
-    next();
+    for (var k = 0; k < READS; k++) { one(); }
+  }
+
+  /* ----------------------------------------------------------------- walk */
+
+  /* Folders listed at once. A listing waits on the disk, so a few side by
+     side keep it busy, and many more only queue inside the browser. */
+  var LISTS = 16;
+
+  /* The File System Access API gives a handle and the older entries API
+     gives an entry. Both name their children and their files, and these two
+     calls are the only places where they differ. */
+  function kindOf(e) {
+    return e.kind || (e.isDirectory ? "directory" : "file");
+  }
+
+  function fileOf(e) {
+    if (e.getFile) { return e.getFile(); }
+    return new Promise(function (ok, no) { e.file(ok, no); });
+  }
+
+  /* An iterator over the children of one folder, as a handle gives one. An
+     entry gives them in batches, and an empty batch means the end. */
+  function children(dir) {
+    if (dir.values) { return dir.values(); }
+    var reader = dir.createReader(), batch = [], end = false;
+    return {
+      next: function () {
+        if (batch.length) { return Promise.resolve({ done: false, value: batch.shift() }); }
+        if (end) { return Promise.resolve({ done: true }); }
+        return new Promise(function (ok, no) { reader.readEntries(ok, no); }).then(function (b) {
+          if (!b.length) { end = true; return { done: true }; }
+          batch = Array.prototype.slice.call(b);
+          return { done: false, value: batch.shift() };
+        });
+      }
+    };
+  }
+
+  /* List the tree under root and give back each file that want accepts,
+     with its path from root. A folder that skipName refuses is never
+     opened, and a folder that holds a cache mark gives nothing, nor does
+     anything under it. A folder that cannot be listed is counted and left.
+     tick hears after each folder, and alive is asked before each one, so a
+     newer folder can stop an older walk. The promise gives null then.
+
+     seen.share is the part of the tree that is listed, from 0 to 1. The root
+     holds all of it, and a folder hands its part on to its folders in equal
+     shares, so the part comes home once a folder has none. It only grows,
+     and it reaches 1 when the walk ends. A count of the folders left could
+     not do that, because the folders left are only the ones seen so far. */
+  function walkFolder(root, want, tick, alive) {
+    return new Promise(function (resolve) {
+      var todo = [{ dir: root, path: "", share: 1 }], busy = 0, found = [];
+      var seen = { dirs: 0, files: 0, kept: 0, cached: 0, failed: 0, share: 0 };
+      function pump() {
+        if (!alive()) { resolve(null); return; }
+        while (busy < LISTS && todo.length) { list(todo.pop()); }
+        if (!busy) { resolve({ found: found, seen: seen }); }
+      }
+      function list(at) {
+        var subs = [], mine = [], marked = false, it = children(at.dir);
+        busy++;
+        function more() {
+          it.next().then(function (r) {
+            if (r.done) { done(); return; }
+            var e = r.value, rel = at.path ? at.path + "/" + e.name : e.name;
+            if (kindOf(e) === "directory") {
+              if (!skipName(e.name)) { subs.push({ dir: e, path: rel, share: 0 }); }
+            } else {
+              seen.files++;
+              if (CACHE_MARKS[e.name]) { marked = true; }
+              else if (!skipName(e.name) && want(e.name)) { mine.push({ path: rel, entry: e }); }
+            }
+            more();
+          }, function () {
+            seen.failed++;
+            subs = []; mine = [];
+            done();
+          });
+        }
+        function done() {
+          busy--;
+          seen.dirs++;
+          if (marked) { seen.cached++; }
+          if (marked || !subs.length) {
+            seen.share += at.share;
+          } else {
+            subs.forEach(function (d) { d.share = at.share / subs.length; });
+          }
+          if (!marked) {
+            /* The queue is a stack, so the walk goes deep first and the
+               queue stays as short as the tree is wide. */
+            for (var i = subs.length - 1; i >= 0; i--) { todo.push(subs[i]); }
+            mine.forEach(function (f) { found.push(f); });
+            seen.kept += mine.filter(function (f) { return /\.md$/i.test(f.path); }).length;
+          }
+          tick(seen);
+          pump();
+        }
+        more();
+      }
+      pump();
+    });
   }
 
   /* --------------------------------------------------------------- build */
@@ -3253,12 +3444,12 @@ lit-html/directives/if-defined.js:
 
     var n = S.docs.length;
     stages([
-      { text: "Resolving the links.", frac: PROG.read,
+      { text: "Resolving the links.", frac: READ_END,
         count: n + " concept documents", run: wire },
-      { text: "Laying the documents out.", frac: PROG.read + PROG.links,
+      { text: "Laying the documents out.", frac: READ_END + PROG.links,
         count: n + " tiles", run: layout },
       { text: "Finding the routes for the lines.",
-        frac: PROG.read + PROG.links + PROG.layout,
+        frac: READ_END + PROG.links + PROG.layout,
         /* The links a person will see, which is not every edge: the folder
            structure is built as well and it is off by default. */
         count: function () {
@@ -3414,43 +3605,45 @@ lit-html/directives/if-defined.js:
   function loadBodies(done) {
     if (S.bodiesRead || S.readingBodies) { return; }
     S.readingBodies = true;
-    var list = S.docs.slice(), i = 0;
-    var every = Math.max(1, Math.round(list.length / 60));
+    var list = S.docs.slice(), next = 0, i = 0, last = 0;
     function show() {
       progress("Reading each document in full, for the links in its prose.",
                (i / list.length) * 0.8, i + " of " + list.length + " files");
     }
-    function next() {
-      if (i >= list.length) {
-        S.readingBodies = false;
-        S.bodiesRead = true;
-        /* The routes for the new links are found next, and that holds the
-           page while it runs. The panel stays up over it, and a moment is
-           left first so the browser can draw it before it blocks. */
-        stages([
-          { text: "Finding the routes for the lines.", frac: 0.8,
-            count: function () {
-              return S.docs.reduce(function (t, d) {
-                return t + (d.bodyRaw ? d.bodyRaw.length : 0);
-              }, 0) + " links in the prose";
-            },
-            run: done },
-          { text: "Done.", frac: 1, count: "", run: progressDone }
-        ]);
-        return;
-      }
-      var d = list[i];
+    function finish() {
+      S.readingBodies = false;
+      S.bodiesRead = true;
+      /* The routes for the new links are found next, and that holds the
+         page while it runs. The panel stays up over it, and a moment is
+         left first so the browser can draw it before it blocks. */
+      stages([
+        { text: "Finding the routes for the lines.", frac: 0.8,
+          count: function () {
+            return S.docs.reduce(function (t, d) {
+              return t + (d.bodyRaw ? d.bodyRaw.length : 0);
+            }, 0) + " links in the prose";
+          },
+          run: done },
+        { text: "Done.", frac: 1, count: "", run: progressDone }
+      ]);
+    }
+    function one() {
+      if (next >= list.length) { return; }
+      var d = list[next++];
       d.file.text().then(function (t) {
         d.bodyRaw = bodyLinks(t);
-        step();
-      }, function () { d.bodyRaw = []; step(); });
-      function step() {
+      }, function () {
+        d.bodyRaw = [];
+      }).then(function () {
         i++;
-        if (i % every === 0) { show(); setTimeout(next, 0); } else { next(); }
-      }
+        var now = Date.now();
+        if (now - last > 50) { last = now; show(); }
+        if (i < list.length) { one(); } else { finish(); }
+      });
     }
     show();
-    next();
+    if (!list.length) { finish(); return; }
+    for (var k = 0; k < READS; k++) { one(); }
   }
 
   /* A path that names a directory resolves to the document that routes it. */
@@ -5943,11 +6136,12 @@ lit-html/directives/if-defined.js:
 
   /* The config nearest the top of the chosen folder applies. Its paths are
      relative to the folder that holds it, as the paths in a .gitignore are. */
-  function readConfig(all) {
-    var files = {}, best = null;
-    all.forEach(function (f) {
-      var rel = (f.webkitRelativePath || f.name).split("/").slice(1).join("/");
-      files[rel] = f;
+  /* files maps each path to something with a text method, a File or a
+     stand-in that opens one, and a folder that the map lists itself holds
+     only its markdown and its configs. */
+  function readConfig(files) {
+    var best = null;
+    keys(files).forEach(function (rel) {
       if (baseOf(rel) === CONFIG &&
           (best === null || rel.split("/").length < best.split("/").length)) { best = rel; }
     });
@@ -6080,17 +6274,37 @@ lit-html/directives/if-defined.js:
   $("btnExport").innerHTML = icon("save", 16);
 
   $("picker").addEventListener("change", function (ev) { load(ev.target.files); });
-  /* Nothing here opens the folder dialog. Both triggers are labels bound to
-     the input, so the browser opens it natively, on a real click, with the
-     user activation intact. Asking for it from script worked in Chrome and
-     was the fragile way to do it: Firefox puts a directory upload behind its
-     own confirmation, and a scripted click is the wrong footing to ask from.
-     A keyboard press on a label does not activate it, so that part stays. */
+  /* Nothing here opens the folder dialog of the input. Both triggers are
+     labels bound to it, so the browser opens it natively, on a real click,
+     with the user activation intact. Asking for it from script worked in
+     Chrome and was the fragile way to do it: Firefox puts a directory upload
+     behind its own confirmation, and a scripted click is the wrong footing
+     to ask from. A keyboard press on a label does not activate it, so that
+     part stays.
+
+     A browser with showDirectoryPicker is asked for the folder itself
+     instead, and the label never reaches the input. The input then lists
+     nothing, and the map lists the folder, as walkFrom says why. */
+  function pickFolder(ev) {
+    if (!window.showDirectoryPicker) { awaitFolder(); return false; }
+    ev.preventDefault();
+    if (!S.docs.length) { progress("Waiting for a folder to be chosen.", 0, ""); }
+    window.showDirectoryPicker({ id: "okf-map", mode: "read" }).then(walkFrom, function (e) {
+      if (e && e.name === "AbortError") { noFolder(); return; }
+      /* A page that may not ask for a folder this way still has the input. */
+      $("picker").click();
+    });
+    return true;
+  }
   function pickKey(ev) {
-    if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); $("picker").click(); }
+    if (ev.key === "Enter" || ev.key === " ") {
+      if (!pickFolder(ev)) { ev.preventDefault(); $("picker").click(); }
+    }
   }
   $("btnPick").addEventListener("keydown", pickKey);
   $("btnPick2").addEventListener("keydown", pickKey);
+  $("btnPick").addEventListener("click", pickFolder);
+  $("btnPick2").addEventListener("click", pickFolder);
 
   /* The browser lists the whole folder before it hands anything over, and it
      says nothing at all while it does. On a folder of any size that wait is
@@ -6104,12 +6318,38 @@ lit-html/directives/if-defined.js:
     progress("Waiting for the browser to list the folder.", 0,
              "a large directory may take longer to read");
   }
-  $("btnPick").addEventListener("click", awaitFolder);
-  $("btnPick2").addEventListener("click", awaitFolder);
 
   /* A dismissed dialog used to leave the page looking dead. */
-  $("picker").addEventListener("cancel", function () {
+  function noFolder() {
     if (!S.docs.length) { progress("No folder was chosen.", 0, ""); $("btnPick2").style.display = ""; }
+  }
+  $("picker").addEventListener("cancel", noFolder);
+
+  /* A folder dropped on the page is listed by the map in every browser,
+     through the entries API where there is one. Chrome lists a large tree
+     that way in about two thirds of the time it takes through the handle
+     that it also offers, which costs more to make for each child. A handle
+     has to be asked for before the drop event returns. */
+  document.addEventListener("dragover", function (ev) {
+    if (ev.dataTransfer && Array.prototype.indexOf.call(ev.dataTransfer.types, "Files") >= 0) {
+      ev.preventDefault();
+      ev.dataTransfer.dropEffect = "copy";
+    }
+  });
+  document.addEventListener("drop", function (ev) {
+    var item = ev.dataTransfer && ev.dataTransfer.items && ev.dataTransfer.items[0];
+    if (!item || item.kind !== "file") { return; }
+    ev.preventDefault();
+    var e = item.webkitGetAsEntry && item.webkitGetAsEntry();
+    if (e) {
+      if (e.isDirectory) { walkFrom(e); }
+      return;
+    }
+    if (item.getAsFileSystemHandle) {
+      item.getAsFileSystemHandle().then(function (h) {
+        if (h && h.kind === "directory") { walkFrom(h); }
+      });
+    }
   });
 
   bindSpec("btnOkf");
