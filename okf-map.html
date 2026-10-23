@@ -3099,35 +3099,38 @@ lit-html/directives/if-defined.js:
      dropped here and never reaches the map. */
   var HEAD = 65536;
 
+  /* Reads that are in flight at once. One at a time leaves the disk idle
+     between each request and its answer. */
+  var READS = 32;
+
   function readAll(list) {
-    var i = 0, kept = [], skipped = 0;
-    var every = Math.max(1, Math.round(list.length / 60));
+    var next = 0, done = 0, skipped = 0, last = 0, kept = new Array(list.length);
     function show() {
       progress("Reading the frontmatter of each file.",
-               (i / list.length) * PROG.read,
-               i + " of " + list.length + " files");
+               (done / list.length) * PROG.read,
+               done + " of " + list.length + " files");
     }
-    function next() {
-      if (i >= list.length) {
-        S.skipped = skipped;
-        build(kept);
-        return;
-      }
-      var d = list[i];
+    function one() {
+      if (next >= list.length) { return; }
+      var at = next++, d = list[at];
       d.file.slice(0, HEAD).text().then(function (head) {
         var fm = frontmatterOnly(head);
-        if (fm === null) { skipped++; } else { d.fmText = fm; kept.push(d); }
-        step();
-      }, function () { skipped++; step(); });
-      function step() {
-        i++;
-        /* Give the panel about sixty updates over the whole folder, whatever
-           its size, and yield the thread each time so the bar moves. */
-        if (i % every === 0) { show(); setTimeout(next, 0); } else { next(); }
-      }
+        if (fm === null) { skipped++; } else { d.fmText = fm; kept[at] = d; }
+      }, function () {
+        skipped++;
+      }).then(function () {
+        done++;
+        var now = Date.now();
+        if (now - last > 50) { last = now; show(); }
+        if (done < list.length) { one(); return; }
+        S.skipped = skipped;
+        /* The order is the order of the list, whichever read came back
+           first, so the same folder always gives the same map. */
+        build(kept.filter(Boolean));
+      });
     }
     show();
-    next();
+    for (var k = 0; k < READS; k++) { one(); }
   }
 
   /* --------------------------------------------------------------- build */
@@ -3414,43 +3417,45 @@ lit-html/directives/if-defined.js:
   function loadBodies(done) {
     if (S.bodiesRead || S.readingBodies) { return; }
     S.readingBodies = true;
-    var list = S.docs.slice(), i = 0;
-    var every = Math.max(1, Math.round(list.length / 60));
+    var list = S.docs.slice(), next = 0, i = 0, last = 0;
     function show() {
       progress("Reading each document in full, for the links in its prose.",
                (i / list.length) * 0.8, i + " of " + list.length + " files");
     }
-    function next() {
-      if (i >= list.length) {
-        S.readingBodies = false;
-        S.bodiesRead = true;
-        /* The routes for the new links are found next, and that holds the
-           page while it runs. The panel stays up over it, and a moment is
-           left first so the browser can draw it before it blocks. */
-        stages([
-          { text: "Finding the routes for the lines.", frac: 0.8,
-            count: function () {
-              return S.docs.reduce(function (t, d) {
-                return t + (d.bodyRaw ? d.bodyRaw.length : 0);
-              }, 0) + " links in the prose";
-            },
-            run: done },
-          { text: "Done.", frac: 1, count: "", run: progressDone }
-        ]);
-        return;
-      }
-      var d = list[i];
+    function finish() {
+      S.readingBodies = false;
+      S.bodiesRead = true;
+      /* The routes for the new links are found next, and that holds the
+         page while it runs. The panel stays up over it, and a moment is
+         left first so the browser can draw it before it blocks. */
+      stages([
+        { text: "Finding the routes for the lines.", frac: 0.8,
+          count: function () {
+            return S.docs.reduce(function (t, d) {
+              return t + (d.bodyRaw ? d.bodyRaw.length : 0);
+            }, 0) + " links in the prose";
+          },
+          run: done },
+        { text: "Done.", frac: 1, count: "", run: progressDone }
+      ]);
+    }
+    function one() {
+      if (next >= list.length) { return; }
+      var d = list[next++];
       d.file.text().then(function (t) {
         d.bodyRaw = bodyLinks(t);
-        step();
-      }, function () { d.bodyRaw = []; step(); });
-      function step() {
+      }, function () {
+        d.bodyRaw = [];
+      }).then(function () {
         i++;
-        if (i % every === 0) { show(); setTimeout(next, 0); } else { next(); }
-      }
+        var now = Date.now();
+        if (now - last > 50) { last = now; show(); }
+        if (i < list.length) { one(); } else { finish(); }
+      });
     }
     show();
-    next();
+    if (!list.length) { finish(); return; }
+    for (var k = 0; k < READS; k++) { one(); }
   }
 
   /* A path that names a directory resolves to the document that routes it. */
