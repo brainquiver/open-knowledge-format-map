@@ -1097,9 +1097,11 @@
   }
   /* The trust and lifecycle badges. Carbon's tag, at the 18px height, with
      the pair of colors each state carries. */
-  .badges { display: flex; flex-wrap: wrap; gap: 4px; }
+  /* The same gap down as across, so a pair that wraps onto two rows sits as
+     evenly as a pair on one row. */
+  .badges { display: flex; flex-wrap: wrap; gap: 6px; }
   .badge {
-    display: inline-flex; align-items: center;
+    display: inline-flex; align-items: center; gap: 6px;
     block-size: 18px; padding-inline: 8px;
     font-size: 12px; letter-spacing: 0.32px; white-space: nowrap;
     background: var(--cds-layer-accent-01); color: var(--cds-text-secondary);
@@ -1108,10 +1110,16 @@
   .badge[data-b="machine-confirmed"] { background: #e8daff; color: #6929c4; }
   .badge[data-b="stale"] { background: #fff1f1; color: #a2191f; }
   .badge[data-b="fresh"] { background: #fcf4d6; color: #684e00; }
+  /* The author is an outlined tag, the same size as the others, with a square
+     in the color of the kind of author. The outline keeps it apart from the
+     filled topic tags under it. */
   .badge[data-b="actor"] {
     background: transparent; color: var(--cds-text-secondary);
-    border-inline-start: 3px solid var(--c);
+    box-shadow: inset 0 0 0 1px var(--cds-border-subtle-01);
     font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  }
+  .badge[data-b="actor"]::before {
+    content: ""; flex: none; inline-size: 8px; block-size: 8px; background: var(--c);
   }
   .tags { display: flex; flex-wrap: wrap; gap: 4px; }
   .tag {
